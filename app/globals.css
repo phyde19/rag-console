@@ -5,23 +5,17 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --border-color: #e5e7eb;
+  --input-bg: #ffffff;
+  --response-bg: #f9fafb;
+  --button-bg: #2563eb;
+  --button-hover: #1d4ed8;
+  --button-text: white;
+  --copy-button-bg: #f3f4f6;
+  --copy-button-hover: #e5e7eb;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
 }

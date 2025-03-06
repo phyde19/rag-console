@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, usePathname } from 'next/navigation';
 import { ChatInterface } from '../components/ChatInterface';
 import { AppLayout } from '../components/AppLayout';
 import { useChatContext } from '../context/ChatContext';
@@ -10,6 +10,7 @@ import { SavedChat } from '../lib/chats';
 export default function ChatPage() {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
   const chatId = params.chatId as string;
   const { savedChats, saveCurrentChat } = useChatContext();
   
@@ -65,8 +66,11 @@ export default function ChatPage() {
       selectedPlugins={chat.config.selectedPlugins}
       onPluginsChange={handlePluginsChange}
     >
-      {/* Use key to force re-creation of component when chat changes */}
-      <ChatInterface key={chat.id} initialChat={chat} />
+      {/* Force complete re-mount of component with pathname+chat ID as key */}
+      <ChatInterface 
+        key={`${pathname}-${chat.id}-${Date.now()}`}
+        initialChat={chat} 
+      />
     </AppLayout>
   );
 }

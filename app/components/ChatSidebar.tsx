@@ -1,28 +1,32 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useChatContext } from '../context/ChatContext';
 import { generateUUID } from '../lib/chats';
 
 export function ChatSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { savedChats, createChat } = useChatContext();
   
   // The elegantly simple solution: we treat URL as the source of truth
   // The only reason to highlight a chat is if it's in the URL
   const activeChatId = pathname === '/' ? null : pathname.replace('/', '');
   
-  // For new chat, we'll pre-navigate, then create the chat
+  // Create a new chat using proper routing
   const handleNewChat = () => {
-    // Generate a UUID for the new chat
-    const newChatId = generateUUID();
-    
-    // Update URL first to avoid any flash
+    // Create the new chat using the context's function - don't skip navigation
+    // Let the router handle the navigation properly
+    const newChatId = generateUUID()
+    const newChat = createChat(undefined, newChatId);
     window.history.pushState({}, '', `/${newChatId}`);
     
-    // Then create the chat with that same ID
-    createChat(undefined, newChatId);
+    // Force a complete reload of the page to create a clean state
+    // This is the most robust solution for ensuring clean state
+    setTimeout(() => {
+      router.refresh();
+    }, 50);
   };
   
   return (
@@ -56,6 +60,7 @@ export function ChatSidebar() {
             <Link
               href={`/${chat.id}`}
               key={chat.id}
+              data-chat-id={chat.id}
               className={`p-2 rounded cursor-pointer block ${activeChatId === chat.id ? 'bg-blue-100 border border-blue-300' : 'hover:bg-gray-100'}`}
             >
               <div className="font-medium truncate">{chat.name}</div>

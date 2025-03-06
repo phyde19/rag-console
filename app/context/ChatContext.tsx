@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { SavedChat, ChatMessage, initialChats } from '../lib/chats';
+import { SavedChat, ChatMessage, initialChats, generateUUID } from '../lib/chats';
 
 // Define context type
 interface ChatContextType {
@@ -11,7 +11,7 @@ interface ChatContextType {
   
   // Actions
   loadSavedChat: (chatId: string) => void;
-  createChat: (name?: string, customId?: string) => void;
+  createChat: (name?: string, customId?: string, skipNavigation?: boolean) => SavedChat;
   updateChatName: (chatId: string, newName: string) => void;
   deleteCurrentChat: (chatId: string) => void;
   saveCurrentChat: (chat: SavedChat) => void;
@@ -57,7 +57,7 @@ export const ChatProvider: React.FC<{
   }, [pathname, savedChats, currentChat]);
   
   // Create a new chat
-  const createChat = (name?: string, customId?: string) => {
+  const createChat = (name?: string, customId?: string, skipNavigation?: boolean) => {
     const defaultName = name || `New Chat ${new Date().toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -66,7 +66,7 @@ export const ChatProvider: React.FC<{
     })}`;
     
     const newChat: SavedChat = {
-      id: customId || Date.now().toString(),
+      id: customId || generateUUID(),
       name: defaultName,
       messages: [
         {
@@ -84,6 +84,14 @@ export const ChatProvider: React.FC<{
     // Update the state immediately
     setSavedChats(prev => [newChat, ...prev]);
     setCurrentChat(newChat);
+    
+    // Only navigate if not explicitly skipped
+    // This allows components to handle navigation themselves for better UX
+    if (!skipNavigation) {
+      router.push(`/${newChat.id}`);
+    }
+    
+    return newChat;
   };
   
   // Load a specific chat

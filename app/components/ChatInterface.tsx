@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Message, MessageRole } from './Message';
 import { NewMessageCell } from './NewMessageCell';
 import { LoadingMessage } from './LoadingMessage';
@@ -35,11 +35,15 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
     content: 'You are a helpful assistant.'
   }];
   
-  // Initialize draft messages directly from props - no useEffect needed
-  // Since we're using the key pattern on the parent, this will reinitialize properly
-  const [draftMessages, setDraftMessages] = useState<ChatMessage[]>(
-    initialChat?.messages || (isWelcome ? defaultMessages : [])
-  );
+  // Get current pathname to help with forced remounting
+  const pathname = usePathname();
+
+  // Initialize draft messages directly from props - completely stateless with respect to initialChat
+  // The key pattern in parent components ensures this is always initialized with fresh data
+  const [draftMessages, setDraftMessages] = useState<ChatMessage[]>(() => {
+    console.log('Initializing ChatInterface with:', initialChat?.id || 'welcome', pathname);
+    return initialChat?.messages || (isWelcome ? defaultMessages : []);
+  });
   
   // Helper function to save changes without using useEffect
   const saveChanges = useCallback((updatedMessages: ChatMessage[]) => {
@@ -81,7 +85,13 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
     // Important: Navigate to the new chat URL after creating it
     // This ensures we're viewing the newly created chat
     if (isWelcome) {
-      router.push(`/${newChat.id}`);
+      // Use router.replace to properly change the URL without adding to history stack
+      window.history.pushState({}, '', `/${newChat.id}`);
+      
+      // Refresh to ensure clean state
+      setTimeout(() => {
+        router.refresh();
+      }, 50);
     }
   }, [initialChat, saveCurrentChat, isWelcome, router]);
 
@@ -101,10 +111,14 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
     // Explicitly save changes instead of relying on useEffect
     saveChanges(newMessages);
     
-    // If this is a welcome page and we're adding meaningful content, create a new chat
-    // Only create a new chat if this is actual content, not just an empty message for editing
-    if (isWelcome && content.trim() && draftMessages.length > 0) {
+    // If this is a welcome page, create a new chat when:
+    // 1. Adding a user message with content, OR
+    // 2. Adding any message type (even empty, which will be edited later)
+    if (isWelcome && (content.trim() || draftMessages.length > 0)) {
       createNewChatFromMessages(newMessages);
+      
+      // Provide feedback that a new chat was created
+      console.log('Created new chat from welcome page - any message added at position');
     }
     
     // Set this new message to be in edit mode if autoEdit is true
@@ -149,10 +163,14 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
     // Explicitly save changes
     saveChanges(updatedMessages);
     
-    // If this is a welcome page and we're adding meaningful content, create a new chat
-    // Only create a new chat if this is actual content, not just an empty message for editing
-    if (isWelcome && content.trim() && draftMessages.length > 0) {
+    // If this is a welcome page, create a new chat when:
+    // 1. Adding a user message with content, OR
+    // 2. Adding any message type (even empty, which will be edited later)
+    if (isWelcome && (content.trim() || draftMessages.length > 0)) {
       createNewChatFromMessages(updatedMessages);
+      
+      // Provide feedback that a new chat was created
+      console.log('Created new chat from welcome page - any message added');
     }
     
     // Set this new message to be in edit mode if content is empty and autoEdit is true
@@ -380,8 +398,12 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
           saveChanges(updatedMessages);
           
           // If this is the welcome page, create a new chat with the response
+          // Add a small delay to ensure UI updates first
           if (isWelcome) {
-            setTimeout(() => createNewChatFromMessages(updatedMessages), 0);
+            setTimeout(() => {
+              createNewChatFromMessages(updatedMessages);
+              console.log('Created new chat from welcome page simulation');
+            }, 100);
           }
           
           return updatedMessages;

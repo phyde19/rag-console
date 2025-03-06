@@ -13,19 +13,28 @@ export function AddMessageHoverUI({ onAdd }: AddMessageHoverUIProps) {
         <div className="flex-grow h-px border-t border-dotted border-gray-300 mr-2"></div>
         <div className="flex gap-2">
           <button
-            onClick={() => onAdd('system')}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAdd('system');
+            }}
             className="px-2 py-0.5 text-xs bg-purple-100 text-purple-800 rounded hover:bg-purple-200 flex items-center gap-1 transition-colors"
           >
             <PlusIcon /> System
           </button>
           <button
-            onClick={() => onAdd('user')}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAdd('user');
+            }}
             className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 flex items-center gap-1 transition-colors"
           >
             <PlusIcon /> User
           </button>
           <button
-            onClick={() => onAdd('assistant')}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAdd('assistant');
+            }}
             className="px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded hover:bg-green-200 flex items-center gap-1 transition-colors"
           >
             <PlusIcon /> Assistant

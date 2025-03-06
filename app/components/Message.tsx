@@ -29,6 +29,11 @@ export function Message({ role, content, index, onUpdate, onDelete, isEditingOve
       }
     }
   }, [isEditingOverride]);
+  
+  // Update editedContent when content prop changes
+  useEffect(() => {
+    setEditedContent(content);
+  }, [content]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const roleColors = {

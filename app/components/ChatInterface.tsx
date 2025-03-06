@@ -103,9 +103,18 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
       content: content || '' // Ensure content is explicitly an empty string if falsy
     };
     
+    // Set editing index first, before updating the message array
+    // This ensures the new message will be in edit mode when rendered
+    if (autoEdit) {
+      console.log('Setting editing index to:', afterIndex + 1, 'BEFORE adding message');
+      setEditingIndex(afterIndex + 1);
+    }
+    
     // Create a new array and insert the message at the proper position
     const newMessages = [...draftMessages];
     newMessages.splice(afterIndex + 1, 0, newMessage);
+    
+    // Important: set the messages AFTER setting the editing index
     setDraftMessages(newMessages);
     
     // Explicitly save changes instead of relying on useEffect
@@ -114,11 +123,12 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
     // No longer creating chats from welcome page automatically
     // We're using an explicit New Chat button approach instead
     
-    // Set this new message to be in edit mode if autoEdit is true
+    // Also set a timeout to ensure edit mode is active even after any other state updates
     if (autoEdit) {
       setTimeout(() => {
+        console.log('Re-setting editing index to:', afterIndex + 1, 'AFTER timeout');
         setEditingIndex(afterIndex + 1);
-      }, 50);
+      }, 100);
     }
   }, [draftMessages, isWelcome, createNewChatFromMessages, saveChanges]);
   
@@ -127,14 +137,11 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
       const { afterIndex, role } = (e as CustomEvent).detail;
       
       // Always call with empty content string to ensure we create a new blank message
+      // Make sure autoEdit is true to force edit mode
       handleAddMessageAtPosition(afterIndex, role, '', true);
       
-      // Focus the newly added message
-      setTimeout(() => {
-        const messageElements = document.querySelectorAll('[data-message-index]');
-        const newMessageElement = messageElements[afterIndex + 1] as HTMLElement;
-        newMessageElement?.click();
-      }, 50);
+      // We don't need to click the message anymore as autoEdit should handle this
+      // The click approach could be causing conflicts with our state management
     };
     
     window.addEventListener('addNextMessage', handleAddNextMessage);
@@ -150,7 +157,17 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
     };
     
     const newIndex = draftMessages.length;
+    
+    // Set editing index first, before updating the message array
+    // This ensures the new message will be in edit mode when rendered
+    if (autoEdit) {
+      console.log('Setting editing index to:', newIndex, 'BEFORE adding message');
+      setEditingIndex(newIndex);
+    }
+    
     const updatedMessages = [...draftMessages, newMessage];
+    
+    // Important: set the messages AFTER setting the editing index
     setDraftMessages(updatedMessages);
     
     // Explicitly save changes
@@ -159,11 +176,12 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
     // No longer creating chats from welcome page automatically
     // We're using an explicit New Chat button approach instead
     
-    // Set this new message to be in edit mode if content is empty and autoEdit is true
-    if (!content && autoEdit) {
+    // Also set a timeout to ensure edit mode is active even after any other state updates
+    if (autoEdit) {
       setTimeout(() => {
+        console.log('Re-setting editing index to:', newIndex, 'AFTER timeout');
         setEditingIndex(newIndex);
-      }, 50);
+      }, 100);
     }
   }, [draftMessages, isWelcome, createNewChatFromMessages, saveChanges]);
   
@@ -561,7 +579,7 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
             {/* Add the hover UI after each message except the last one */}
             {index < displayMessages.length - 1 && (
               <AddMessageHoverUI 
-                onAdd={(role) => handleAddMessageAtPosition(index, role)} 
+                onAdd={(role) => handleAddMessageAtPosition(index, role, '', true)} 
               />
             )}
           </div>

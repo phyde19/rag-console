@@ -17,7 +17,6 @@ interface ChatContextType {
   saveCurrentChat: (chat: SavedChat) => void;
   
   // Active chat management
-  currentChat: SavedChat | null;
   isWelcomeTemplate: boolean;
 }
 
@@ -31,30 +30,17 @@ export const ChatProvider: React.FC<{
   
   // In-memory state
   const [savedChats, setSavedChats] = useState<SavedChat[]>(initialChats);
-  const [currentChat, setCurrentChat] = useState<SavedChat | null>(null);
   const [isWelcomeTemplate, setIsWelcomeTemplate] = useState(false);
   
-  // Initialize state based on the current route - with deep comparison to prevent loops
+  // Simply track if we're on the welcome page based on the current route
   useEffect(() => {
     // If we're at the root path, set welcome template flag
     if (pathname === '/') {
       setIsWelcomeTemplate(true);
-      setCurrentChat(null);
     } else {
-      // For specific chat route, set the current chat
-      const chatId = pathname.substring(1); // Remove leading slash safely
-      const chat = savedChats.find(c => c.id === chatId);
-      
-      if (chat) {
-        // Only update if the chat ID has changed or currentChat is null
-        // This prevents re-renders when chat content changes but ID remains the same
-        if (!currentChat || currentChat.id !== chat.id) {
-          setCurrentChat(chat);
-          setIsWelcomeTemplate(false);
-        }
-      }
+      setIsWelcomeTemplate(false);
     }
-  }, [pathname, savedChats, currentChat]);
+  }, [pathname]);
   
   // Create a new chat
   const createChat = (name?: string, customId?: string, skipNavigation?: boolean) => {
@@ -83,7 +69,6 @@ export const ChatProvider: React.FC<{
     
     // Update the state immediately
     setSavedChats(prev => [newChat, ...prev]);
-    setCurrentChat(newChat);
     
     // Only navigate if not explicitly skipped
     // This allows components to handle navigation themselves for better UX
@@ -116,14 +101,6 @@ export const ChatProvider: React.FC<{
           : chat
       );
     });
-    
-    // If this is the current chat, update it too
-    if (currentChat && currentChat.id === chatId) {
-      setCurrentChat(prev => {
-        if (!prev) return prev;
-        return { ...prev, name: newName.trim() };
-      });
-    }
   };
   
   // Delete a chat
@@ -167,14 +144,6 @@ export const ChatProvider: React.FC<{
         return [chat, ...prevChats];
       }
     });
-    
-    // Only update currentChat if it's different or null
-    if (!currentChat || currentChat.id !== chat.id || 
-        JSON.stringify(currentChat.messages) !== JSON.stringify(chat.messages) ||
-        currentChat.config.temperature !== chat.config.temperature ||
-        JSON.stringify(currentChat.config.selectedPlugins) !== JSON.stringify(chat.config.selectedPlugins)) {
-      setCurrentChat(chat);
-    }
   };
   
   return (
@@ -186,7 +155,6 @@ export const ChatProvider: React.FC<{
         updateChatName,
         deleteCurrentChat,
         saveCurrentChat,
-        currentChat,
         isWelcomeTemplate
       }}
     >

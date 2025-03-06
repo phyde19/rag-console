@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Message, MessageRole } from './Message';
 import { NewMessageCell } from './NewMessageCell';
@@ -9,12 +9,17 @@ import { AddMessageHoverUI } from './AddMessageHoverUI';
 import { useChatContext } from '../context/ChatContext';
 import { SavedChat, ChatMessage, companyPlugins, generateUUID } from '../lib/chats';
 
+// Default configuration
+const DEFAULT_CONFIG = {
+  temperature: 0.7,
+  selectedPlugins: []
+};
+
 interface ChatInterfaceProps {
-  initialChat?: SavedChat;
-  isWelcome?: boolean;
+  chat: SavedChat; // Now required since this component should only be used with a chat
 }
 
-export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceProps) {
+export function ChatInterface({ chat }: ChatInterfaceProps) {
   const router = useRouter();
   const { 
     createChat, 
@@ -29,35 +34,26 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
   const [editingChatName, setEditingChatName] = useState<string | null>(null);
   const [loadingMessageId, setLoadingMessageId] = useState<string | null>(null);
   
-  // Default messages for welcome page
-  const defaultMessages: ChatMessage[] = [{
-    role: 'system',
-    content: 'You are a helpful assistant.'
-  }];
-  
   // Get current pathname to help with forced remounting
   const pathname = usePathname();
 
-  // Initialize draft messages directly from props - completely stateless with respect to initialChat
+  // Initialize draft messages directly from props - completely stateless with respect to chat
   // The key pattern in parent components ensures this is always initialized with fresh data
   const [draftMessages, setDraftMessages] = useState<ChatMessage[]>(() => {
-    console.log('Initializing ChatInterface with:', initialChat?.id || 'welcome', pathname);
-    return initialChat?.messages || (isWelcome ? defaultMessages : []);
+    return chat.messages;
   });
   
   // Helper function to save changes without using useEffect
-  const saveChanges = useCallback((updatedMessages: ChatMessage[]) => {
-    if (!initialChat) return;
-    
+  const saveChanges = useCallback((updatedMessages: ChatMessage[]) => {    
     const updatedChat: SavedChat = {
-      ...initialChat,
+      ...chat,
       messages: updatedMessages,
-      config: initialChat.config,
+      config: chat.config,
       updatedAt: new Date().toISOString()
     };
     
     saveCurrentChat(updatedChat);
-  }, [initialChat, saveCurrentChat]);
+  }, [chat, saveCurrentChat]);
   
   // Function to create a new chat from current messages - memoized to avoid dependency cycles
   const createNewChatFromMessages = useCallback((currentMessages: ChatMessage[]) => {
@@ -72,118 +68,76 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
       id: generateUUID(),
       name: defaultName,
       messages: currentMessages,
-      config: initialChat?.config ?? {
-        temperature: 0.7,
-        selectedPlugins: []
-      },
+      config: chat.config ?? DEFAULT_CONFIG,
       updatedAt: new Date().toISOString()
     };
     
     // First save the chat to context
     saveCurrentChat(newChat);
     
-    // Important: Navigate to the new chat URL after creating it
-    // This ensures we're viewing the newly created chat
-    if (isWelcome) {
-      // Use router.replace to properly change the URL without adding to history stack
-      window.history.pushState({}, '', `/${newChat.id}`);
-      
-      // Refresh to ensure clean state
-      setTimeout(() => {
-        router.refresh();
-      }, 50);
-    }
-  }, [initialChat, saveCurrentChat, isWelcome, router]);
+    // Navigate to the new chat URL when needed
+    router.push(`/${newChat.id}`);
+  }, [chat, saveCurrentChat, router]);
 
-  // Handle adding message at position with explicit save
-  const handleAddMessageAtPosition = useCallback((afterIndex: number, role: MessageRole, content: string = '', autoEdit: boolean = true) => {
-    // Create a completely new message object with explicitly empty content if none provided
+  // Unified message handling function to reduce duplication
+  const addMessage = useCallback((options: {
+    role: MessageRole,
+    content?: string,
+    autoEdit?: boolean,
+    position?: number | null // null means add to end
+  }) => {
+    const { role, content = '', autoEdit = true, position = null } = options;
+    
+    // Create a new message object with explicitly empty content if none provided
     const newMessage: ChatMessage = { 
       role, 
       content: content || '' // Ensure content is explicitly an empty string if falsy
     };
     
-    // Set editing index first, before updating the message array
-    // This ensures the new message will be in edit mode when rendered
-    if (autoEdit) {
-      console.log('Setting editing index to:', afterIndex + 1, 'BEFORE adding message');
-      setEditingIndex(afterIndex + 1);
+    // Calculate the index of the new message
+    const isAppending = position === null;
+    const newIndex = isAppending ? draftMessages.length : position + 1;
+    
+    // Update messages array
+    const updatedMessages = [...draftMessages];
+    if (isAppending) {
+      updatedMessages.push(newMessage);
+    } else {
+      updatedMessages.splice(newIndex, 0, newMessage);
     }
     
-    // Create a new array and insert the message at the proper position
-    const newMessages = [...draftMessages];
-    newMessages.splice(afterIndex + 1, 0, newMessage);
+    // Update the state and save changes
+    setDraftMessages(updatedMessages);
+    saveChanges(updatedMessages);
     
-    // Important: set the messages AFTER setting the editing index
-    setDraftMessages(newMessages);
-    
-    // Explicitly save changes instead of relying on useEffect
-    saveChanges(newMessages);
-    
-    // No longer creating chats from welcome page automatically
-    // We're using an explicit New Chat button approach instead
-    
-    // Also set a timeout to ensure edit mode is active even after any other state updates
+    // Set this new message to be in edit mode if autoEdit is true
     if (autoEdit) {
       setTimeout(() => {
-        console.log('Re-setting editing index to:', afterIndex + 1, 'AFTER timeout');
-        setEditingIndex(afterIndex + 1);
-      }, 100);
+        setEditingIndex(newIndex);
+      }, 50);
     }
-  }, [draftMessages, isWelcome, createNewChatFromMessages, saveChanges]);
+    
+    return newIndex;
+  }, [draftMessages, saveChanges]);
+  
+  // Convenience functions that use the unified message handler
+  const handleAddMessageAtPosition = useCallback((afterIndex: number, role: MessageRole, content: string = '', autoEdit: boolean = true) => {
+    return addMessage({ role, content, autoEdit, position: afterIndex });
+  }, [addMessage]);
+  
+  const handleAddMessage = useCallback((role: MessageRole, content: string = '', autoEdit: boolean = true) => {
+    return addMessage({ role, content, autoEdit });
+  }, [addMessage]);
   
   useEffect(() => {
     const handleAddNextMessage = (e: Event) => {
       const { afterIndex, role } = (e as CustomEvent).detail;
-      
-      // Always call with empty content string to ensure we create a new blank message
-      // Make sure autoEdit is true to force edit mode
       handleAddMessageAtPosition(afterIndex, role, '', true);
-      
-      // We don't need to click the message anymore as autoEdit should handle this
-      // The click approach could be causing conflicts with our state management
     };
     
     window.addEventListener('addNextMessage', handleAddNextMessage);
     return () => window.removeEventListener('addNextMessage', handleAddNextMessage);
   }, [handleAddMessageAtPosition]);
-  
-  // Message handling functions
-  const handleAddMessage = useCallback((role: MessageRole, content: string, autoEdit: boolean = true) => {
-    // Create a completely new message object with explicitly empty content if none provided
-    const newMessage: ChatMessage = { 
-      role, 
-      content: content || '' // Ensure content is explicitly an empty string if falsy
-    };
-    
-    const newIndex = draftMessages.length;
-    
-    // Set editing index first, before updating the message array
-    // This ensures the new message will be in edit mode when rendered
-    if (autoEdit) {
-      console.log('Setting editing index to:', newIndex, 'BEFORE adding message');
-      setEditingIndex(newIndex);
-    }
-    
-    const updatedMessages = [...draftMessages, newMessage];
-    
-    // Important: set the messages AFTER setting the editing index
-    setDraftMessages(updatedMessages);
-    
-    // Explicitly save changes
-    saveChanges(updatedMessages);
-    
-    // No longer creating chats from welcome page automatically
-    // We're using an explicit New Chat button approach instead
-    
-    // Also set a timeout to ensure edit mode is active even after any other state updates
-    if (autoEdit) {
-      setTimeout(() => {
-        console.log('Re-setting editing index to:', newIndex, 'AFTER timeout');
-        setEditingIndex(newIndex);
-      }, 100);
-    }
-  }, [draftMessages, isWelcome, createNewChatFromMessages, saveChanges]);
   
   const handleUpdateMessage = useCallback((index: number, content: string) => {
     const updatedMessages = [...draftMessages];
@@ -214,11 +168,8 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
     const newName = prompt('Enter a name for this forked chat:');
     if (!newName) return;
     
-    // Get configuration from initialChat or use defaults
-    const config = initialChat?.config ?? {
-      temperature: 0.7,
-      selectedPlugins: []
-    };
+    // Get configuration from chat or use defaults
+    const config = chat?.config ?? DEFAULT_CONFIG;
     
     const newChat: SavedChat = {
       id: generateUUID(),
@@ -229,12 +180,8 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
     };
     
     saveCurrentChat(newChat);
-  }, [draftMessages, initialChat, saveCurrentChat]);
+  }, [draftMessages, chat, saveCurrentChat]);
   
-  // Create a new empty chat
-  const handleNewChat = useCallback(() => {
-    createChat();
-  }, [createChat]);
   
   // Helper function to get simulated response
   const getSimulatedResponse = useCallback((config: { temperature: number, selectedPlugins: string[] }) => {
@@ -280,11 +227,8 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
     });
     
     try {
-      // Get configuration from initialChat or use defaults
-      const config = initialChat?.config ?? {
-        temperature: 0.7,
-        selectedPlugins: []
-      };
+      // Get configuration from chat or use defaults
+      const config = chat?.config ?? DEFAULT_CONFIG;
       
       // Simulated response for demo purposes
       setTimeout(() => {
@@ -322,7 +266,7 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
       setLoadingMessageId(null);
       setIsSimulating(false);
     }
-  }, [draftMessages, initialChat, saveChanges, getSimulatedResponse]);
+  }, [draftMessages, chat, saveChanges, getSimulatedResponse]);
   
   // Track whether to allow overwriting without confirmation
   const [allowOverwrite, setAllowOverwrite] = useState(false);
@@ -380,11 +324,8 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
     }
     
     try {
-      // Get configuration from initialChat or use defaults
-      const config = initialChat?.config ?? {
-        temperature: 0.7,
-        selectedPlugins: []
-      };
+      // Get configuration from chat or use defaults
+      const config = chat?.config ?? DEFAULT_CONFIG;
       
       // Simulated response for demo purposes
       setTimeout(() => {
@@ -419,7 +360,7 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
       setLoadingMessageId(null);
       setIsSimulating(false);
     }
-  }, [draftMessages, initialChat, isWelcome, saveChanges, createNewChatFromMessages, handleResimulate, getSimulatedResponse, allowOverwrite]);
+  }, [draftMessages, chat, saveChanges, handleResimulate, getSimulatedResponse, allowOverwrite]);
   
   // Chat name handling
   const handleUpdateChatName = useCallback((chatId: string, newName: string) => {
@@ -436,14 +377,7 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
     deleteCurrentChat(chatId);
   }, [deleteCurrentChat]);
   
-  // Always use draftMessages as the source of truth - it was initialized correctly
-  // from either initialChat?.messages or defaultMessages
-  const displayMessages = draftMessages;
-  
-  // If welcome page, show nothing - welcome content is in the home page component
-  if (isWelcome) {
-    return null;
-  }
+  // draftMessages is the source of truth - it was initialized from chat.messages
 
   return (
     <div className="col-span-7 p-4 h-screen overflow-y-auto">
@@ -494,74 +428,54 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
           </div>
         </div>
         
-        {/* Welcome message for new session or chat name with edit capability */}
-        {isWelcome ? (
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
-            <h2 className="text-lg font-medium text-blue-800 mb-2">Welcome to Chat Simulation</h2>
-            <p className="text-blue-700 mb-2">
-              This is a template to help you get started. Here's how to use this tool:
-            </p>
-            <ul className="text-blue-700 list-disc pl-5 space-y-1">
-              <li>Add messages using the "+" buttons or the input at the bottom</li>
-              <li>Click "Simulate Chat" to generate an AI response</li>
-              <li>Adjust temperature and select plugins in the right panel</li>
-              <li>Save and manage your chats using the sidebar</li>
-            </ul>
-            <p className="text-blue-700 mt-2 italic">
-              Note: When you add a message or simulate a response, this will automatically be saved as a new chat.
-            </p>
-          </div>
-        ) : (
-          initialChat && (
-            <div className="flex items-center">
-              {editingChatName === initialChat.id ? (
-                <div className="flex items-center w-full">
-                  <input
-                    type="text"
-                    defaultValue={initialChat.name}
-                    className="flex-1 p-2 border rounded text-lg font-medium"
-                    autoFocus
-                    onBlur={(e) => handleUpdateChatName(initialChat.id, e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleUpdateChatName(initialChat.id, e.currentTarget.value);
-                      } else if (e.key === 'Escape') {
-                        setEditingChatName(null);
-                      }
-                    }}
-                  />
-                </div>
-              ) : (
-                <div className="flex items-center group">
-                  <h2 
-                    className="text-lg font-medium cursor-pointer flex-1 hover:text-blue-600"
-                    onClick={() => setEditingChatName(initialChat.id)}
-                  >
-                    {initialChat.name}
-                  </h2>
-                  <button
-                    onClick={() => setEditingChatName(initialChat.id)}
-                    className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-100 rounded"
-                    title="Edit name"
-                  >
-                    <EditIcon />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteChat(initialChat.id)}
-                    className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 text-red-500 rounded"
-                    title="Delete chat"
-                  >
-                    <TrashIcon />
-                  </button>
-                </div>
-              )}
+        {/* Chat name with edit capability */}
+        <div className="flex items-center">
+          {editingChatName === chat.id ? (
+            <div className="flex items-center w-full">
+              <input
+                type="text"
+                defaultValue={chat.name}
+                className="flex-1 p-2 border rounded text-lg font-medium"
+                autoFocus
+                onBlur={(e) => handleUpdateChatName(chat.id, e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleUpdateChatName(chat.id, e.currentTarget.value);
+                  } else if (e.key === 'Escape') {
+                    setEditingChatName(null);
+                  }
+                }}
+              />
             </div>
-          )
-        )}
+          ) : (
+            <div className="flex items-center group">
+              <h2 
+                className="text-lg font-medium cursor-pointer flex-1 hover:text-blue-600"
+                onClick={() => setEditingChatName(chat.id)}
+              >
+                {chat.name}
+              </h2>
+              <button
+                onClick={() => setEditingChatName(chat.id)}
+                className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-100 rounded"
+                title="Edit name"
+              >
+                <EditIcon />
+              </button>
+              <button
+                onClick={() => handleDeleteChat(chat.id)}
+                className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 text-red-500 rounded"
+                title="Delete chat"
+              >
+                <TrashIcon />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       
       <div>
-        {displayMessages.map((message, index) => (
+        {draftMessages.map((message, index) => (
           <div key={index} data-message-index={index}>
             {message.id === loadingMessageId ? (
               <LoadingMessage />
@@ -577,7 +491,7 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
               />
             )}
             {/* Add the hover UI after each message except the last one */}
-            {index < displayMessages.length - 1 && (
+            {index < draftMessages.length - 1 && (
               <AddMessageHoverUI 
                 onAdd={(role) => handleAddMessageAtPosition(index, role, '', true)} 
               />
@@ -586,7 +500,7 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
         ))}
         
         {/* Add hover UI after the last message */}
-        {displayMessages.length > 0 && (
+        {draftMessages.length > 0 && (
           <AddMessageHoverUI onAdd={handleQuickAdd} />
         )}
         

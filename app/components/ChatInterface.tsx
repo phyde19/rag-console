@@ -30,33 +30,31 @@ export function ChatInterface({ chat }: ChatInterfaceProps) {
   
   // Only use local state for UI-specific elements
   const [isSimulating, setIsSimulating] = useState(false);
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editingChatName, setEditingChatName] = useState<string | null>(null);
-  const [loadingMessageId, setLoadingMessageId] = useState<string | null>(null);
+  // Track whether to allow overwriting without confirmation
+  const [allowOverwrite, setAllowOverwrite] = useState(false);
   
-  // Get current pathname to help with forced remounting
-  const pathname = usePathname();
-
-  // Initialize draft messages directly from props - completely stateless with respect to chat
-  // The key pattern in parent components ensures this is always initialized with fresh data
-  const [draftMessages, setDraftMessages] = useState<ChatMessage[]>(() => {
-    return chat.messages;
-  });
-  
-  // Helper function to save changes without using useEffect
-  const saveChanges = useCallback((updatedMessages: ChatMessage[]) => {    
+  // Helper function to save changes to the chat context
+  const saveChanges = (updatedMessages: ChatMessage[]) => {
+    // Ensure all messages have IDs
+    const messagesWithIds = updatedMessages.map(msg => ({
+      ...msg,
+      id: msg.id || generateUUID()
+    }));
+    
     const updatedChat: SavedChat = {
       ...chat,
-      messages: updatedMessages,
+      messages: messagesWithIds,
       config: chat.config,
       updatedAt: new Date().toISOString()
     };
     
     saveCurrentChat(updatedChat);
-  }, [chat, saveCurrentChat]);
+  }
   
-  // Function to create a new chat from current messages - memoized to avoid dependency cycles
-  const createNewChatFromMessages = useCallback((currentMessages: ChatMessage[]) => {
+  // Function to create a new chat from current messages
+  const createNewChatFromMessages = (currentMessages: ChatMessage[]) => {
     const defaultName = `New Chat ${new Date().toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -64,10 +62,16 @@ export function ChatInterface({ chat }: ChatInterfaceProps) {
       minute: 'numeric'
     })}`;
     
+    // Ensure each message has an ID
+    const messagesWithIds = currentMessages.map(msg => ({
+      ...msg,
+      id: msg.id || generateUUID()
+    }));
+    
     const newChat: SavedChat = {
       id: generateUUID(),
       name: defaultName,
-      messages: currentMessages,
+      messages: messagesWithIds,
       config: chat.config ?? DEFAULT_CONFIG,
       updatedAt: new Date().toISOString()
     };
@@ -77,10 +81,10 @@ export function ChatInterface({ chat }: ChatInterfaceProps) {
     
     // Navigate to the new chat URL when needed
     router.push(`/${newChat.id}`);
-  }, [chat, saveCurrentChat, router]);
+  }
 
   // Unified message handling function to reduce duplication
-  const addMessage = useCallback((options: {
+  const addMessage = (options: {
     role: MessageRole,
     content?: string,
     autoEdit?: boolean,
@@ -88,79 +92,74 @@ export function ChatInterface({ chat }: ChatInterfaceProps) {
   }) => {
     const { role, content = '', autoEdit = true, position = null } = options;
     
-    // Create a new message object with explicitly empty content if none provided
+    // Create a new message object with ID and explicitly empty content if none provided
     const newMessage: ChatMessage = { 
+      id: generateUUID(),
       role, 
       content: content || '' // Ensure content is explicitly an empty string if falsy
     };
     
-    // Calculate the index of the new message
-    const isAppending = position === null;
-    const newIndex = isAppending ? draftMessages.length : position + 1;
+    // Create a new messages array
+    const updatedMessages = [...chat.messages];
+    updatedMessages.splice(position === null ? updatedMessages.length : position + 1, 0, newMessage);
     
-    // Update messages array
-    const updatedMessages = [...draftMessages];
-    if (isAppending) {
-      updatedMessages.push(newMessage);
-    } else {
-      updatedMessages.splice(newIndex, 0, newMessage);
-    }
-    
-    // Update the state and save changes
-    setDraftMessages(updatedMessages);
+    // Save changes to context
     saveChanges(updatedMessages);
     
     // Set this new message to be in edit mode if autoEdit is true
     if (autoEdit) {
       setTimeout(() => {
-        setEditingIndex(newIndex);
+        setEditingId(newMessage.id);
       }, 50);
     }
     
-    return newIndex;
-  }, [draftMessages, saveChanges]);
+    return newMessage.id;
+  }
   
   // Convenience functions that use the unified message handler
-  const handleAddMessageAtPosition = useCallback((afterIndex: number, role: MessageRole, content: string = '', autoEdit: boolean = true) => {
+  const handleAddMessageAtPosition = (afterIndex: number, role: MessageRole, content: string = '', autoEdit: boolean = true) => {
     return addMessage({ role, content, autoEdit, position: afterIndex });
-  }, [addMessage]);
+  }
   
-  const handleAddMessage = useCallback((role: MessageRole, content: string = '', autoEdit: boolean = true) => {
+  const handleAddMessage = (role: MessageRole, content: string = '', autoEdit: boolean = false) => {
     return addMessage({ role, content, autoEdit });
-  }, [addMessage]);
+  }
   
   useEffect(() => {
     const handleAddNextMessage = (e: Event) => {
-      const { afterIndex, role } = (e as CustomEvent).detail;
-      handleAddMessageAtPosition(afterIndex, role, '', true);
+      const { afterId, role } = (e as CustomEvent).detail;
+      // Find the index of the message with the given ID
+      const index = chat.messages.findIndex(msg => msg.id === afterId);
+      if (index !== -1) {
+        handleAddMessageAtPosition(index, role, '', true);
+      }
     };
     
     window.addEventListener('addNextMessage', handleAddNextMessage);
     return () => window.removeEventListener('addNextMessage', handleAddNextMessage);
-  }, [handleAddMessageAtPosition]);
+  }, [chat.messages, handleAddMessageAtPosition]);
   
-  const handleUpdateMessage = useCallback((index: number, content: string) => {
-    const updatedMessages = [...draftMessages];
-    updatedMessages[index] = { ...updatedMessages[index], content };
-    setDraftMessages(updatedMessages);
+  const handleUpdateMessage = (messageId: string, content: string) => {
+    const updatedMessages = chat.messages.map(msg => 
+      msg.id === messageId ? { ...msg, content } : msg
+    );
     
-    // Explicitly save changes
+    // Save changes to context
     saveChanges(updatedMessages);
     
-    // Clear the editing index
-    setEditingIndex(null);
-  }, [draftMessages, saveChanges]);
+    // Clear the editing ID
+    setEditingId(null);
+  }
   
-  const handleDeleteMessage = useCallback((index: number) => {
-    const updatedMessages = draftMessages.filter((_, i) => i !== index);
-    setDraftMessages(updatedMessages);
+  const handleDeleteMessage = (messageId: string) => {
+    const updatedMessages = chat.messages.filter(msg => msg.id !== messageId);
     
-    // Explicitly save changes
+    // Save changes to context
     saveChanges(updatedMessages);
-  }, [draftMessages, saveChanges]);
+  }
   
   const handleQuickAdd = useCallback((role: MessageRole) => {
-    handleAddMessage(role, '', true);
+    handleAddMessage(role, '', true); // We still want editing for the quick-add buttons
   }, [handleAddMessage]);
   
   // Fork the current chat
@@ -171,20 +170,25 @@ export function ChatInterface({ chat }: ChatInterfaceProps) {
     // Get configuration from chat or use defaults
     const config = chat?.config ?? DEFAULT_CONFIG;
     
+    // Ensure each message has an ID
+    const messagesWithIds = chat.messages.map(msg => ({
+      ...msg,
+      id: msg.id || generateUUID()
+    }));
+    
     const newChat: SavedChat = {
       id: generateUUID(),
       name: newName,
-      messages: draftMessages,
+      messages: messagesWithIds,
       config,
       updatedAt: new Date().toISOString()
     };
     
     saveCurrentChat(newChat);
-  }, [draftMessages, chat, saveCurrentChat]);
-  
+  }, [chat, saveCurrentChat]);
   
   // Helper function to get simulated response
-  const getSimulatedResponse = useCallback((config: { temperature: number, selectedPlugins: string[] }) => {
+  const getSimulatedResponse = (config: { temperature: number, selectedPlugins: string[] }) => {
     let pluginsDescription = '';
     if (config.selectedPlugins.length > 0) {
       const pluginNames = config.selectedPlugins.map(id => {
@@ -199,185 +203,107 @@ export function ChatInterface({ chat }: ChatInterfaceProps) {
     return `This is a simulated AI response (temperature: ${config.temperature}) based on the conversation history. ` +
       `${pluginsDescription} ` +
       `In a real implementation, this would be generated by calling an AI model API with the entire message history.`;
-  }, []);
+  }
   
   // Handle re-simulation of a specific message
-  const handleResimulate = useCallback((index: number) => {
+  const handleResimulate = (messageId: string) => {
     // Make sure there's at least one user message to respond to
-    const hasUserMessage = draftMessages.some(msg => msg.role === 'user');
+    const hasUserMessage = chat.messages.some(msg => msg.role === 'user');
     if (!hasUserMessage) {
       alert('Please add at least one user message before simulating.');
       return;
     }
     
+    simulateMessage(messageId, chat.messages);
+  }
+  
+  // Helper function to simulate a message
+  const simulateMessage = async (messageId: string, messages: ChatMessage[]) => {
     setIsSimulating(true);
     
-    // Generate a unique ID for the loading message
-    const tempId = Date.now().toString();
-    setLoadingMessageId(tempId);
-    
-    // Update the message at the specified index to have the loading ID
-    setDraftMessages(prevMessages => {
-      const updated = [...prevMessages];
-      updated[index] = {
-        ...updated[index],
-        id: tempId
-      };
-      return updated;
-    });
+    // Mark the message as loading
+    const updatedMessages = messages.map(msg => 
+      msg.id === messageId ? { ...msg, isLoading: true } : msg
+    );
+    saveChanges(updatedMessages);
     
     try {
       // Get configuration from chat or use defaults
       const config = chat?.config ?? DEFAULT_CONFIG;
       
       // Simulated response for demo purposes
-      setTimeout(() => {
-        const simulatedResponse = getSimulatedResponse(config);
-        
-        // Replace the placeholder with the actual response
-        setDraftMessages(prevMessages => {
-          const updatedMessages = prevMessages.map((msg, i) => 
-            i === index 
-              ? { ...msg, content: simulatedResponse, id: undefined } 
-              : msg
-          );
-          
-          // Save changes explicitly
-          saveChanges(updatedMessages);
-          
-          return updatedMessages;
-        });
-        
-        setLoadingMessageId(null);
-        setIsSimulating(false);
-      }, 1500);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Update the message with the simulated response
+      saveChanges(updatedMessages.map(msg => 
+        msg.id === messageId 
+          ? { ...msg, content: getSimulatedResponse(config), isLoading: false } 
+          : msg
+      ));
     } catch (error) {
-      console.error('Error simulating chat:', error);
+      console.error('Simulation error:', error);
       
-      // Restore the original message
-      setDraftMessages(prevMessages => {
-        return prevMessages.map((msg, i) => 
-          i === index && msg.id === tempId
-            ? { ...msg, id: undefined }
-            : msg
-        );
-      });
-      
-      setLoadingMessageId(null);
+      // Reset loading state if there's an error
+      saveChanges(updatedMessages.map(msg => 
+        msg.id === messageId ? { ...msg, isLoading: false } : msg
+      ));
+    } finally {
       setIsSimulating(false);
     }
-  }, [draftMessages, chat, saveChanges, getSimulatedResponse]);
-  
-  // Track whether to allow overwriting without confirmation
-  const [allowOverwrite, setAllowOverwrite] = useState(false);
+  }
   
   // Main simulation function
-  const handleSimulate = useCallback(async () => {
+  const handleSimulate = async () => {
     // Make sure there's at least one user message to respond to
-    const hasUserMessage = draftMessages.some(msg => msg.role === 'user');
-    if (!hasUserMessage) {
+    if (!chat.messages.some(msg => msg.role === 'user')) {
       alert('Please add at least one user message before simulating.');
       return;
     }
     
     // Check if the last message is an assistant message
-    const lastMessageIndex = draftMessages.length - 1;
-    const lastMessage = draftMessages[lastMessageIndex];
+    const lastMessage = chat.messages[chat.messages.length - 1];
     
-    if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content.trim()) {
-      // If last message is assistant and has content, confirm overwrite (unless allowOverwrite is true)
-      if (!allowOverwrite && !confirm('Replace the last assistant message with a new simulation?')) {
-        return;
+    // If the last message is an assistant message, we should update it instead of adding a new one
+    if (lastMessage && lastMessage.role === 'assistant') {
+      // Only confirm if the message already has content and allowOverwrite is false
+      if (lastMessage.content.trim() && !allowOverwrite) {
+        if (!confirm('Replace the last assistant message with a new simulation?')) {
+          return;
+        }
       }
       
       // Re-simulate the last message
-      handleResimulate(lastMessageIndex);
+      await simulateMessage(lastMessage.id, chat.messages);
       return;
     }
     
-    setIsSimulating(true);
+    // Add a new assistant message and simulate it
+    const newMessage: ChatMessage = { 
+      id: generateUUID(),
+      role: 'assistant', 
+      content: ''
+    };
     
-    // Generate a unique ID for the loading message
-    const tempId = Date.now().toString();
-    setLoadingMessageId(tempId);
+    const updatedMessages = [...chat.messages, newMessage];
+    saveChanges(updatedMessages);
     
-    // If last message is already assistant but empty, use it; otherwise add new one
-    if (lastMessage && lastMessage.role === 'assistant' && !lastMessage.content.trim()) {
-      // Use existing empty assistant message
-      setDraftMessages(prevMessages => {
-        const updated = [...prevMessages];
-        updated[lastMessageIndex] = {
-          ...updated[lastMessageIndex],
-          id: tempId
-        };
-        return updated;
-      });
-    } else {
-      // Add a new assistant message
-      const newMessage: ChatMessage = { 
-        role: 'assistant', 
-        content: '',
-        id: tempId
-      };
-      
-      setDraftMessages(prevMessages => [...prevMessages, newMessage]);
-    }
-    
-    try {
-      // Get configuration from chat or use defaults
-      const config = chat?.config ?? DEFAULT_CONFIG;
-      
-      // Simulated response for demo purposes
-      setTimeout(() => {
-        const simulatedResponse = getSimulatedResponse(config);
-        
-        // Find the message with the loading ID and replace it
-        setDraftMessages(prevMessages => {
-          const updatedMessages = prevMessages.map(msg => 
-            msg.id === tempId 
-              ? { ...msg, content: simulatedResponse, id: undefined } 
-              : msg
-          );
-          
-          // Save changes explicitly
-          saveChanges(updatedMessages);
-          
-          // No longer creating chats from welcome page automatically
-          // We're using an explicit New Chat button approach instead
-          
-          return updatedMessages;
-        });
-        
-        setLoadingMessageId(null);
-        setIsSimulating(false);
-      }, 1500);
-    } catch (error) {
-      console.error('Error simulating chat:', error);
-      
-      // Remove the loading message if there's an error
-      setDraftMessages(prevMessages => prevMessages.filter(msg => msg.id !== tempId));
-      
-      setLoadingMessageId(null);
-      setIsSimulating(false);
-    }
-  }, [draftMessages, chat, saveChanges, handleResimulate, getSimulatedResponse, allowOverwrite]);
+    await simulateMessage(newMessage.id, updatedMessages);
+  }
   
   // Chat name handling
-  const handleUpdateChatName = useCallback((chatId: string, newName: string) => {
+  const handleUpdateChatName = (chatId: string, newName: string) => {
     if (!newName.trim()) return;
     
     // Update name in context
     updateChatName(chatId, newName);
     setEditingChatName(null);
-  }, [updateChatName, setEditingChatName]);
+  }
   
   // Delete chat
-  const handleDeleteChat = useCallback((chatId: string) => {
+  const handleDeleteChat = (chatId: string) => {
     if (!confirm('Are you sure you want to delete this chat?')) return;
     deleteCurrentChat(chatId);
-  }, [deleteCurrentChat]);
-  
-  // draftMessages is the source of truth - it was initialized from chat.messages
+  }
 
   return (
     <div className="col-span-7 p-4 h-screen overflow-y-auto">
@@ -475,32 +401,35 @@ export function ChatInterface({ chat }: ChatInterfaceProps) {
       </div>
       
       <div>
-        {draftMessages.map((message, index) => (
-          <div key={index} data-message-index={index}>
-            {message.id === loadingMessageId ? (
+        {chat.messages.map((message, index) => (
+          <div key={message.id}>
+            {message.isLoading ? (
               <LoadingMessage />
             ) : (
               <Message
+                id={message.id}
                 role={message.role}
                 content={message.content}
-                index={index}
                 onUpdate={handleUpdateMessage}
                 onDelete={handleDeleteMessage}
                 onResimulate={message.role === 'assistant' ? handleResimulate : undefined}
-                isEditingOverride={editingIndex === index}
+                isEditingOverride={message.id === editingId}
               />
             )}
             {/* Add the hover UI after each message except the last one */}
-            {index < draftMessages.length - 1 && (
+            {index < chat.messages.length - 1 && (
               <AddMessageHoverUI 
-                onAdd={(role) => handleAddMessageAtPosition(index, role, '', true)} 
+                onAdd={(role) => {
+                  const position = chat.messages.findIndex(msg => msg.id === message.id);
+                  handleAddMessageAtPosition(position, role, '', true);
+                }} 
               />
             )}
           </div>
         ))}
         
         {/* Add hover UI after the last message */}
-        {draftMessages.length > 0 && (
+        {chat.messages.length > 0 && (
           <AddMessageHoverUI onAdd={handleQuickAdd} />
         )}
         

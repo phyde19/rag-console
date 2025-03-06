@@ -7,14 +7,14 @@ export type MessageRole = 'system' | 'user' | 'assistant';
 export interface MessageProps {
   role: MessageRole;
   content: string;
-  index: number;
-  onUpdate: (index: number, content: string) => void;
-  onDelete: (index: number) => void;
-  onResimulate?: (index: number) => void; // New function for re-simulating
+  id: string;
+  onUpdate: (id: string, content: string) => void;
+  onDelete: (id: string) => void;
+  onResimulate?: (id: string) => void; // Function for re-simulating
   isEditingOverride?: boolean;
 }
 
-export function Message({ role, content, index, onUpdate, onDelete, onResimulate, isEditingOverride }: MessageProps) {
+export function Message({ role, content, id, onUpdate, onDelete, onResimulate, isEditingOverride }: MessageProps) {
   const [isEditing, setIsEditing] = useState(isEditingOverride || false);
   const [editedContent, setEditedContent] = useState(content);
   
@@ -55,7 +55,7 @@ export function Message({ role, content, index, onUpdate, onDelete, onResimulate
   const handleSave = () => {
     // Only update if content has actually changed
     if (content !== editedContent) {
-      onUpdate(index, editedContent);
+      onUpdate(id, editedContent);
     }
     setIsEditing(false);
   };
@@ -76,7 +76,7 @@ export function Message({ role, content, index, onUpdate, onDelete, onResimulate
       
       // First save the current content
       if (content !== editedContent) {
-        onUpdate(index, editedContent);
+        onUpdate(id, editedContent);
       }
       
       // Exit edit mode
@@ -92,7 +92,7 @@ export function Message({ role, content, index, onUpdate, onDelete, onResimulate
       // Add a slight delay to ensure the save operation completes first
       setTimeout(() => {
         const event = new CustomEvent('addNextMessage', { 
-          detail: { afterIndex: index, role: nextRole } 
+          detail: { afterId: id, role: nextRole } 
         });
         window.dispatchEvent(event);
       }, 10);
@@ -115,7 +115,7 @@ export function Message({ role, content, index, onUpdate, onDelete, onResimulate
             <button 
               onClick={(e) => {
                 e.stopPropagation();
-                onResimulate(index);
+                onResimulate(id);
               }}
               className="opacity-40 hover:opacity-100 transition-opacity" /* Added padding for larger hit area */
               aria-label="Re-simulate response"
@@ -127,7 +127,7 @@ export function Message({ role, content, index, onUpdate, onDelete, onResimulate
           <button 
             onClick={(e) => {
               e.stopPropagation();
-              onDelete(index);
+              onDelete(id);
             }}
             className="opacity-40 hover:opacity-100 transition-opacity p-1" /* Added padding for larger hit area */
             aria-label="Delete message"

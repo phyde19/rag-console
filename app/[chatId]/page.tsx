@@ -67,10 +67,7 @@ export default function ChatPage() {
       onPluginsChange={handlePluginsChange}
     >
       {/* Force complete re-mount of component with pathname+chat ID as key */}
-      <ChatInterface 
-        key={`${pathname}-${chat.id}-${Date.now()}`}
-        chat={chat} 
-      />
+      <ChatInterface chat={chat} />
     </AppLayout>
   );
 }

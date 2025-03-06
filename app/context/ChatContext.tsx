@@ -56,6 +56,7 @@ export const ChatProvider: React.FC<{
       name: defaultName,
       messages: [
         {
+          id: generateUUID(),
           role: 'system',
           content: 'You are a helpful assistant.'
         }

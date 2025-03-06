@@ -13,7 +13,8 @@ export function generateUUID(): string {
 export interface ChatMessage {
   role: MessageRole;
   content: string;
-  id?: string; // Optional ID used for loading messages
+  id: string;
+  isLoading?: boolean;
 }
 
 export interface SavedChat {
@@ -41,8 +42,8 @@ export const initialChats: SavedChat[] = [
     id: '123e4567-e89b-12d3-a456-426614174000', // Using static UUIDs for initial chats
     name: 'BlueCard FAQ',
     messages: [
-      { role: 'system', content: 'You are a helpful assistant for BlueCard.' },
-      { role: 'user', content: 'What is BlueCard?' }
+      { id: generateUUID(), role: 'system', content: 'You are a helpful assistant for BlueCard.' },
+      { id: generateUUID(), role: 'user', content: 'What is BlueCard?' }
     ],
     config: { temperature: 0.7, selectedPlugins: ['bluecard_chat'] },
     updatedAt: '2025-03-05T10:30:00Z'
@@ -51,8 +52,8 @@ export const initialChats: SavedChat[] = [
     id: '98765432-dcba-4321-abcd-987654321123',
     name: 'Technical Support',
     messages: [
-      { role: 'system', content: 'You are a technical support agent.' },
-      { role: 'user', content: 'How do I deploy to GCP?' }
+      { id: generateUUID(), role: 'system', content: 'You are a technical support agent.' },
+      { id: generateUUID(), role: 'user', content: 'How do I deploy to GCP?' }
     ],
     config: { temperature: 0.5, selectedPlugins: ['gcp_chat', 'dscoe_docs_chat'] },
     updatedAt: '2025-03-04T15:45:00Z'

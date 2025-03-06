@@ -1,6 +1,15 @@
 // Chat types
 import { MessageRole } from '../components/Message';
 
+// Simple UUID v4 generator function
+export function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, 
+        v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 export interface ChatMessage {
   role: MessageRole;
   content: string;
@@ -29,7 +38,7 @@ export const companyPlugins = [
 // Sample initial chats
 export const initialChats: SavedChat[] = [
   {
-    id: '1',
+    id: '123e4567-e89b-12d3-a456-426614174000', // Using static UUIDs for initial chats
     name: 'BlueCard FAQ',
     messages: [
       { role: 'system', content: 'You are a helpful assistant for BlueCard.' },
@@ -39,7 +48,7 @@ export const initialChats: SavedChat[] = [
     updatedAt: '2025-03-05T10:30:00Z'
   },
   {
-    id: '2',
+    id: '98765432-dcba-4321-abcd-987654321123',
     name: 'Technical Support',
     messages: [
       { role: 'system', content: 'You are a technical support agent.' },

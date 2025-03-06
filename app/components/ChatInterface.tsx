@@ -7,7 +7,7 @@ import { NewMessageCell } from './NewMessageCell';
 import { LoadingMessage } from './LoadingMessage';
 import { AddMessageHoverUI } from './AddMessageHoverUI';
 import { useChatContext } from '../context/ChatContext';
-import { SavedChat, ChatMessage, companyPlugins } from '../lib/chats';
+import { SavedChat, ChatMessage, companyPlugins, generateUUID } from '../lib/chats';
 
 interface ChatInterfaceProps {
   initialChat?: SavedChat;
@@ -65,7 +65,7 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
     })}`;
     
     const newChat: SavedChat = {
-      id: Date.now().toString(),
+      id: generateUUID(),
       name: defaultName,
       messages: currentMessages,
       config: initialChat?.config ?? {
@@ -199,7 +199,7 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
     };
     
     const newChat: SavedChat = {
-      id: Date.now().toString(),
+      id: generateUUID(),
       name: newName,
       messages: draftMessages,
       config,

@@ -11,7 +11,7 @@ interface ChatContextType {
   
   // Actions
   loadSavedChat: (chatId: string) => void;
-  createChat: (name?: string) => void;
+  createChat: (name?: string, customId?: string) => void;
   updateChatName: (chatId: string, newName: string) => void;
   deleteCurrentChat: (chatId: string) => void;
   saveCurrentChat: (chat: SavedChat) => void;
@@ -57,7 +57,7 @@ export const ChatProvider: React.FC<{
   }, [pathname, savedChats, currentChat]);
   
   // Create a new chat
-  const createChat = (name?: string) => {
+  const createChat = (name?: string, customId?: string) => {
     const defaultName = name || `New Chat ${new Date().toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -66,7 +66,7 @@ export const ChatProvider: React.FC<{
     })}`;
     
     const newChat: SavedChat = {
-      id: Date.now().toString(),
+      id: customId || Date.now().toString(),
       name: defaultName,
       messages: [
         {
@@ -84,9 +84,6 @@ export const ChatProvider: React.FC<{
     // Update the state immediately
     setSavedChats(prev => [newChat, ...prev]);
     setCurrentChat(newChat);
-    
-    // Use router navigation
-    router.push(`/${newChat.id}`);
   };
   
   // Load a specific chat

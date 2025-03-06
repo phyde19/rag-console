@@ -3,18 +3,26 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useChatContext } from '../context/ChatContext';
+import { generateUUID } from '../lib/chats';
 
 export function ChatSidebar() {
   const pathname = usePathname();
-  const { savedChats, createChat, currentChat } = useChatContext();
+  const { savedChats, createChat } = useChatContext();
   
-  // Determine active chat ID from both pathname and current chat context
-  // This prevents lag when navigating between chats
-  const pathnameId = pathname === '/' ? null : pathname.replace('/', '');
-  const activeChatId = currentChat?.id || pathnameId;
+  // The elegantly simple solution: we treat URL as the source of truth
+  // The only reason to highlight a chat is if it's in the URL
+  const activeChatId = pathname === '/' ? null : pathname.replace('/', '');
   
+  // For new chat, we'll pre-navigate, then create the chat
   const handleNewChat = () => {
-    createChat();
+    // Generate a UUID for the new chat
+    const newChatId = generateUUID();
+    
+    // Update URL first to avoid any flash
+    window.history.pushState({}, '', `/${newChatId}`);
+    
+    // Then create the chat with that same ID
+    createChat(undefined, newChatId);
   };
   
   return (

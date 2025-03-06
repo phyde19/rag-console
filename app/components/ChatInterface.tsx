@@ -111,15 +111,8 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
     // Explicitly save changes instead of relying on useEffect
     saveChanges(newMessages);
     
-    // If this is a welcome page, create a new chat when:
-    // 1. Adding a user message with content, OR
-    // 2. Adding any message type (even empty, which will be edited later)
-    if (isWelcome && (content.trim() || draftMessages.length > 0)) {
-      createNewChatFromMessages(newMessages);
-      
-      // Provide feedback that a new chat was created
-      console.log('Created new chat from welcome page - any message added at position');
-    }
+    // No longer creating chats from welcome page automatically
+    // We're using an explicit New Chat button approach instead
     
     // Set this new message to be in edit mode if autoEdit is true
     if (autoEdit) {
@@ -163,15 +156,8 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
     // Explicitly save changes
     saveChanges(updatedMessages);
     
-    // If this is a welcome page, create a new chat when:
-    // 1. Adding a user message with content, OR
-    // 2. Adding any message type (even empty, which will be edited later)
-    if (isWelcome && (content.trim() || draftMessages.length > 0)) {
-      createNewChatFromMessages(updatedMessages);
-      
-      // Provide feedback that a new chat was created
-      console.log('Created new chat from welcome page - any message added');
-    }
+    // No longer creating chats from welcome page automatically
+    // We're using an explicit New Chat button approach instead
     
     // Set this new message to be in edit mode if content is empty and autoEdit is true
     if (!content && autoEdit) {
@@ -397,14 +383,8 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
           // Save changes explicitly
           saveChanges(updatedMessages);
           
-          // If this is the welcome page, create a new chat with the response
-          // Add a small delay to ensure UI updates first
-          if (isWelcome) {
-            setTimeout(() => {
-              createNewChatFromMessages(updatedMessages);
-              console.log('Created new chat from welcome page simulation');
-            }, 100);
-          }
+          // No longer creating chats from welcome page automatically
+          // We're using an explicit New Chat button approach instead
           
           return updatedMessages;
         });
@@ -442,21 +422,24 @@ export function ChatInterface({ initialChat, isWelcome = false }: ChatInterfaceP
   // from either initialChat?.messages or defaultMessages
   const displayMessages = draftMessages;
   
+  // If welcome page, show nothing - welcome content is in the home page component
+  if (isWelcome) {
+    return null;
+  }
+
   return (
     <div className="col-span-7 p-4 h-screen overflow-y-auto">
       <div className="mb-4">
         <div className="flex justify-between items-center mb-2">
           <h1 className="text-2xl font-bold">Chat Simulation</h1>
           <div className="flex gap-2 items-center">
-            {!isWelcome && (
-              <button
-                onClick={handleForkChat}
-                className="px-2 py-1 text-sm border rounded hover:bg-gray-50 flex items-center gap-1"
-              >
-                <ForkIcon />
-                <span>Fork</span>
-              </button>
-            )}
+            <button
+              onClick={handleForkChat}
+              className="px-2 py-1 text-sm border rounded hover:bg-gray-50 flex items-center gap-1"
+            >
+              <ForkIcon />
+              <span>Fork</span>
+            </button>
             <button
               onClick={handleSimulate}
               disabled={isSimulating}

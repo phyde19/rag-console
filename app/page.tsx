@@ -50,37 +50,34 @@ export default function Home() {
     return () => window.removeEventListener('addNextMessage', handleAddNextMessage);
   }, [messages]);
 
-  const handleAddMessage = (role: MessageRole, content: string) => {
+  const handleAddMessage = (role: MessageRole, content: string, autoEdit: boolean = true) => {
     const newIndex = messages.length;
     setMessages([...messages, { role, content }]);
     
-    // Set this new message to be in edit mode if content is empty
-    if (!content) {
+    // Set this new message to be in edit mode if content is empty and autoEdit is true
+    if (!content && autoEdit) {
       setTimeout(() => {
         setEditingIndex(newIndex);
       }, 50);
     }
   };
   
-  const handleAddMessageAtPosition = (afterIndex: number, role: MessageRole, content: string = '') => {
+  const handleAddMessageAtPosition = (afterIndex: number, role: MessageRole, content: string = '', autoEdit: boolean = true) => {
     const newMessages = [...messages];
     newMessages.splice(afterIndex + 1, 0, { role, content });
     setMessages(newMessages);
     
-    // Set this new message to be in edit mode
-    setTimeout(() => {
-      setEditingIndex(afterIndex + 1);
-    }, 50);
+    // Set this new message to be in edit mode if autoEdit is true
+    if (autoEdit) {
+      setTimeout(() => {
+        setEditingIndex(afterIndex + 1);
+      }, 50);
+    }
   };
   
   const handleQuickAdd = (role: MessageRole) => {
-    const newIndex = messages.length;
-    setMessages([...messages, { role, content: '' }]);
-    
-    // Set this new message to be in edit mode
-    setTimeout(() => {
-      setEditingIndex(newIndex);
-    }, 50);
+    // Use the handleAddMessage function with autoEdit=true
+    handleAddMessage(role, '', true);
   };
 
   const handleUpdateMessage = (index: number, content: string) => {
@@ -115,10 +112,17 @@ export default function Home() {
     setLoadingMessageId(tempId);
     
     // Add a placeholder message immediately
-    setMessages([
-      ...messages,
-      { role: 'assistant', content: '', id: tempId }
-    ]);
+    handleAddMessage('assistant', '', false);
+    
+    // Update the last message to have the loading ID
+    setMessages(prevMessages => {
+      const updated = [...prevMessages];
+      updated[updated.length - 1] = {
+        ...updated[updated.length - 1],
+        id: tempId
+      };
+      return updated;
+    });
     
     try {
       // Simulated response for demo purposes

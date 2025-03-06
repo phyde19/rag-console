@@ -87,17 +87,17 @@ export function Message({ role, content, index, onUpdate, onDelete, isEditingOve
     >
       <div className="flex justify-between items-center mb-2">
         <div className="font-medium">{roleLabels[role]}</div>
-        {!isEditing && (
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(index);
-            }}
-            className="text-xs px-2 py-1 bg-red-100 rounded hover:bg-red-200"
-          >
-            Delete
-          </button>
-        )}
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(index);
+          }}
+          className="opacity-40 hover:opacity-100 transition-opacity"
+          aria-label="Delete message"
+          title="Delete message"
+        >
+          <TrashIcon />
+        </button>
       </div>
       
       {isEditing ? (
@@ -134,5 +134,25 @@ export function Message({ role, content, index, onUpdate, onDelete, isEditingOve
         <div className="whitespace-pre-wrap">{content}</div>
       )}
     </div>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg 
+      xmlns="http://www.w3.org/2000/svg" 
+      width="16" 
+      height="16" 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    >
+      <path d="M3 6h18"></path>
+      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+    </svg>
   );
 }

@@ -14,8 +14,8 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "RAG Playground",
-  description: "A playground for RAG applications",
+  title: "Chat Simulation Playground",
+  description: "A minimalist but powerful tool for simulating and experimenting with AI chat applications",
 };
 
 export default function RootLayout({

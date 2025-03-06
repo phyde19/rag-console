@@ -1,127 +1,255 @@
 'use client';
 
-import { useState } from 'react';
-import { EmbeddingModelSelect } from './components/EmbeddingModelSelect';
-import { VectorIndexSelect } from './components/VectorIndexSelect';
-import { PluginSelect } from './components/PluginSelect';
+import { useState, useEffect, useRef } from 'react';
+import { Message, MessageRole } from './components/Message';
+import { NewMessageCell } from './components/NewMessageCell';
+import { ConfigPanel } from './components/ConfigPanel';
 import { LoadingSpinner } from './components/LoadingSpinner';
+import { AddMessageHoverUI } from './components/AddMessageHoverUI';
+import { LoadingMessage } from './components/LoadingMessage';
+
+interface ChatMessage {
+  role: MessageRole;
+  content: string;
+  id?: string; // Optional ID used for loading messages
+}
 
 export default function Home() {
-  const [systemPrompt, setSystemPrompt] = useState('');
-  const [userPrompt, setUserPrompt] = useState('');
-  const [response, setResponse] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [temperature, setTemperature] = useState(0.7);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    // Placeholder for when you integrate with your backend
-    try {
-      // This is where you would call your backend API
-      // For now, we'll just simulate a response
+  // Add initial system message if messages is empty
+  useEffect(() => {
+    if (messages.length === 0) {
+      setMessages([
+        {
+          role: 'system',
+          content: 'You are a helpful assistant.'
+        }
+      ]);
+    }
+  }, []);
+  
+  // Listen for the custom event to add a new message after Shift+Enter
+  useEffect(() => {
+    const handleAddNextMessage = (e: Event) => {
+      const { afterIndex, role } = (e as CustomEvent).detail;
+      handleAddMessageAtPosition(afterIndex, role);
+      
+      // Focus the newly added message
       setTimeout(() => {
-        setResponse('This is a simulated AI response. Replace this with actual integration to your backend.');
-        setLoading(false);
-      }, 1000);
+        const messageElements = document.querySelectorAll('[data-message-index]');
+        const newMessageElement = messageElements[afterIndex + 1] as HTMLElement;
+        newMessageElement?.click();
+      }, 50);
+    };
+    
+    window.addEventListener('addNextMessage', handleAddNextMessage);
+    return () => window.removeEventListener('addNextMessage', handleAddNextMessage);
+  }, [messages]);
+
+  const handleAddMessage = (role: MessageRole, content: string) => {
+    const newIndex = messages.length;
+    setMessages([...messages, { role, content }]);
+    
+    // Set this new message to be in edit mode if content is empty
+    if (!content) {
+      setTimeout(() => {
+        setEditingIndex(newIndex);
+      }, 50);
+    }
+  };
+  
+  const handleAddMessageAtPosition = (afterIndex: number, role: MessageRole, content: string = '') => {
+    const newMessages = [...messages];
+    newMessages.splice(afterIndex + 1, 0, { role, content });
+    setMessages(newMessages);
+    
+    // Set this new message to be in edit mode
+    setTimeout(() => {
+      setEditingIndex(afterIndex + 1);
+    }, 50);
+  };
+  
+  const handleQuickAdd = (role: MessageRole) => {
+    const newIndex = messages.length;
+    setMessages([...messages, { role, content: '' }]);
+    
+    // Set this new message to be in edit mode
+    setTimeout(() => {
+      setEditingIndex(newIndex);
+    }, 50);
+  };
+
+  const handleUpdateMessage = (index: number, content: string) => {
+    const updatedMessages = [...messages];
+    updatedMessages[index] = { ...updatedMessages[index], content };
+    setMessages(updatedMessages);
+    
+    // Clear the editing index
+    setEditingIndex(null);
+  };
+
+  const handleDeleteMessage = (index: number) => {
+    const updatedMessages = messages.filter((_, i) => i !== index);
+    setMessages(updatedMessages);
+  };
+
+  // State for the placeholder loading message
+  const [loadingMessageId, setLoadingMessageId] = useState<string | null>(null);
+  
+  const handleSimulate = async () => {
+    // Make sure there's at least one user message to respond to
+    const hasUserMessage = messages.some(msg => msg.role === 'user');
+    if (!hasUserMessage) {
+      alert('Please add at least one user message before simulating.');
+      return;
+    }
+    
+    setIsSimulating(true);
+    
+    // Generate a unique ID for the loading message
+    const tempId = Date.now().toString();
+    setLoadingMessageId(tempId);
+    
+    // Add a placeholder message immediately
+    setMessages([
+      ...messages,
+      { role: 'assistant', content: '', id: tempId }
+    ]);
+    
+    try {
+      // Simulated response for demo purposes
+      // In a real app, you would call your backend API with messages and temperature
+      setTimeout(() => {
+        const simulatedResponse = 
+          `This is a simulated AI response (temperature: ${temperature}) based on the conversation history. ` +
+          `In a real implementation, this would be generated by calling an AI model API with the entire message history.`;
+        
+        // Replace the placeholder with the actual response
+        setMessages(prevMessages => 
+          prevMessages.map(msg => 
+            msg.id === tempId 
+              ? { ...msg, content: simulatedResponse, id: undefined } 
+              : msg
+          )
+        );
+        
+        setLoadingMessageId(null);
+        setIsSimulating(false);
+      }, 1500);
     } catch (error) {
-      console.error('Error generating response:', error);
-      setResponse('An error occurred while generating the response.');
-      setLoading(false);
+      console.error('Error simulating chat:', error);
+      
+      // Remove the loading message if there's an error
+      setMessages(prevMessages => prevMessages.filter(msg => msg.id !== tempId));
+      
+      setLoadingMessageId(null);
+      setIsSimulating(false);
     }
   };
 
+  const handleExport = () => {
+    const exportData = {
+      messages,
+      config: {
+        temperature
+      }
+    };
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'chat-simulation.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const content = event.target?.result as string;
+            const importData = JSON.parse(content);
+            
+            if (Array.isArray(importData.messages)) {
+              setMessages(importData.messages);
+              
+              if (importData.config && typeof importData.config.temperature === 'number') {
+                setTemperature(importData.config.temperature);
+              }
+            }
+          } catch (error) {
+            console.error('Error parsing import file:', error);
+            alert('Failed to import: Invalid file format');
+          }
+        };
+        reader.readAsText(file);
+      }
+    };
+    
+    input.click();
+  };
+  
   return (
     <div className="min-h-screen p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">RAG Playground</h1>
+      <h1 className="text-2xl font-bold mb-4">Chat Simulation Playground</h1>
       
-      <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-          <div>
-            <label className="block text-sm font-medium mb-1">Embedding Model</label>
-            <EmbeddingModelSelect />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-1">Vector Index</label>
-            <VectorIndexSelect />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-1">Plugins</label>
-            <PluginSelect />
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <div>
-            <label htmlFor="system-prompt" className="block text-sm font-medium mb-1">
-              System Prompt
-            </label>
-            <textarea
-              id="system-prompt"
-              className="w-full h-40 p-3 border border-[var(--border-color)] bg-[var(--input-bg)] rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter system prompt here..."
-              value={systemPrompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="user-prompt" className="block text-sm font-medium mb-1">
-              User Prompt
-            </label>
-            <textarea
-              id="user-prompt"
-              className="w-full h-40 p-3 border border-[var(--border-color)] bg-[var(--input-bg)] rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter user prompt here..."
-              value={userPrompt}
-              onChange={(e) => setUserPrompt(e.target.value)}
-              required
-            />
-          </div>
-        </div>
-        
-        <div className="mb-6">
-          <button 
-            type="submit"
-            className="px-4 py-2 bg-[var(--button-bg)] text-[var(--button-text)] rounded-md hover:bg-[var(--button-hover)] transition-colors disabled:opacity-50 flex items-center gap-2"
-            disabled={loading}
-          >
-            {loading && <LoadingSpinner />}
-            {loading ? 'Generating...' : 'Generate Response'}
-          </button>
-        </div>
-      </form>
+      <ConfigPanel
+        temperature={temperature}
+        onTemperatureChange={setTemperature}
+        onSimulate={handleSimulate}
+        onExport={handleExport}
+        onImport={handleImport}
+        isSimulating={isSimulating}
+      />
       
-      <div>
-        <div className="flex justify-between items-center mb-1">
-          <label className="block text-sm font-medium">
-            AI Response
-          </label>
-          {response && (
-            <button 
-              onClick={() => navigator.clipboard.writeText(response)}
-              className="text-xs px-2 py-1 bg-[var(--copy-button-bg)] rounded hover:bg-[var(--copy-button-hover)]"
-            >
-              Copy
-            </button>
-          )}
-        </div>
-        <div className="w-full min-h-40 p-3 border border-[var(--border-color)] rounded-md bg-[var(--response-bg)]">
-          {loading ? (
-            <div className="flex justify-center items-center h-40">
-              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[var(--button-bg)] border-t-transparent"></div>
-            </div>
-          ) : (
-            <div className="whitespace-pre-wrap">
-              {response ? (
-                <p>{response}</p>
+      <div className="mb-8">
+        <h2 className="text-lg font-semibold mb-3">Conversation</h2>
+        
+        <div>
+          {messages.map((message, index) => (
+            <div key={index} data-message-index={index}>
+              {message.id === loadingMessageId ? (
+                <LoadingMessage />
               ) : (
-                <p className="text-gray-400 italic">Response will appear here...</p>
+                <Message
+                  role={message.role}
+                  content={message.content}
+                  index={index}
+                  onUpdate={handleUpdateMessage}
+                  onDelete={handleDeleteMessage}
+                  isEditingOverride={editingIndex === index}
+                />
+              )}
+              {/* Add the hover UI after each message except the last one */}
+              {index < messages.length - 1 && (
+                <AddMessageHoverUI 
+                  onAdd={(role) => handleAddMessageAtPosition(index, role)} 
+                />
               )}
             </div>
+          ))}
+          
+          {/* Add hover UI after the last message */}
+          {messages.length > 0 && (
+            <AddMessageHoverUI onAdd={handleQuickAdd} />
           )}
+          
+          <NewMessageCell onAdd={handleAddMessage} />
         </div>
       </div>
     </div>

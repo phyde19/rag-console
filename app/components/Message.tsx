@@ -17,10 +17,13 @@ export function Message({ role, content, index, onUpdate, onDelete, isEditingOve
   const [isEditing, setIsEditing] = useState(isEditingOverride || false);
   const [editedContent, setEditedContent] = useState(content);
   
-  // Update editing state if the override prop changes
+  // Update editing state and ensure content is properly initialized when editing starts
   useEffect(() => {
     if (isEditingOverride !== undefined) {
       setIsEditing(isEditingOverride);
+      // Always make sure the edited content matches the actual content when edit mode changes
+      setEditedContent(content);
+      
       if (isEditingOverride) {
         // Focus the textarea when entering edit mode
         setTimeout(() => {
@@ -28,7 +31,7 @@ export function Message({ role, content, index, onUpdate, onDelete, isEditingOve
         }, 10);
       }
     }
-  }, [isEditingOverride]);
+  }, [isEditingOverride, content]);
   
   // Update editedContent when content prop changes
   useEffect(() => {
@@ -49,7 +52,10 @@ export function Message({ role, content, index, onUpdate, onDelete, isEditingOve
   };
 
   const handleSave = () => {
-    onUpdate(index, editedContent);
+    // Only update if content has actually changed
+    if (content !== editedContent) {
+      onUpdate(index, editedContent);
+    }
     setIsEditing(false);
   };
 
@@ -66,7 +72,14 @@ export function Message({ role, content, index, onUpdate, onDelete, isEditingOve
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && e.shiftKey) {
       e.preventDefault();
-      handleSave();
+      
+      // First save the current content
+      if (content !== editedContent) {
+        onUpdate(index, editedContent);
+      }
+      
+      // Exit edit mode
+      setIsEditing(false);
       
       // Determine the next role based on current role
       const nextRole: MessageRole = 
@@ -75,10 +88,13 @@ export function Message({ role, content, index, onUpdate, onDelete, isEditingOve
         'system';
       
       // Dispatch a custom event that the parent can listen for
-      const event = new CustomEvent('addNextMessage', { 
-        detail: { afterIndex: index, role: nextRole } 
-      });
-      window.dispatchEvent(event);
+      // Add a slight delay to ensure the save operation completes first
+      setTimeout(() => {
+        const event = new CustomEvent('addNextMessage', { 
+          detail: { afterIndex: index, role: nextRole } 
+        });
+        window.dispatchEvent(event);
+      }, 10);
     } else if (e.key === 'Escape') {
       setIsEditing(false);
       setEditedContent(content); // Reset to original content
@@ -117,13 +133,17 @@ export function Message({ role, content, index, onUpdate, onDelete, isEditingOve
           />
           <div className="flex gap-2 mt-2">
             <button 
-              onClick={handleSave}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSave(); 
+              }}
               className="text-xs px-2 py-1 bg-green-100 rounded hover:bg-green-200"
             >
               Save
             </button>
             <button 
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setIsEditing(false);
                 setEditedContent(content);
               }}

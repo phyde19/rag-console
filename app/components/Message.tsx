@@ -10,10 +10,11 @@ export interface MessageProps {
   index: number;
   onUpdate: (index: number, content: string) => void;
   onDelete: (index: number) => void;
+  onResimulate?: (index: number) => void; // New function for re-simulating
   isEditingOverride?: boolean;
 }
 
-export function Message({ role, content, index, onUpdate, onDelete, isEditingOverride }: MessageProps) {
+export function Message({ role, content, index, onUpdate, onDelete, onResimulate, isEditingOverride }: MessageProps) {
   const [isEditing, setIsEditing] = useState(isEditingOverride || false);
   const [editedContent, setEditedContent] = useState(content);
   
@@ -108,17 +109,33 @@ export function Message({ role, content, index, onUpdate, onDelete, isEditingOve
     >
       <div className="flex justify-between items-center mb-2">
         <div className="font-medium">{roleLabels[role]}</div>
-        <button 
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(index);
-          }}
-          className="opacity-40 hover:opacity-100 transition-opacity"
-          aria-label="Delete message"
-          title="Delete message"
-        >
-          <TrashIcon />
-        </button>
+        <div className="flex gap-3"> {/* Increased gap for better separation */}
+          {/* Only show refresh button for assistant messages and when onResimulate is provided */}
+          {role === 'assistant' && onResimulate && (
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                onResimulate(index);
+              }}
+              className="opacity-40 hover:opacity-100 transition-opacity" /* Added padding for larger hit area */
+              aria-label="Re-simulate response"
+              title="Re-simulate response"
+            >
+              <RefreshIcon />
+            </button>
+          )}
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(index);
+            }}
+            className="opacity-40 hover:opacity-100 transition-opacity p-1" /* Added padding for larger hit area */
+            aria-label="Delete message"
+            title="Delete message"
+          >
+            <TrashIcon />
+          </button>
+        </div>
       </div>
       
       {isEditing ? (
@@ -178,6 +195,27 @@ function TrashIcon() {
       <path d="M3 6h18"></path>
       <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
       <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+    </svg>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg 
+      xmlns="http://www.w3.org/2000/svg" 
+      width="16" 
+      height="16" 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    >
+      <path d="M23 4v6h-6"></path>
+      <path d="M1 20v-6h6"></path>
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path>
+      <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path>
     </svg>
   );
 }

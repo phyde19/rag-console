@@ -1,7 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import React, { createContext, useContext, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { SavedChat, ChatMessage, initialChats, generateUUID } from '../lib/chats';
 
 // Define context type
@@ -15,9 +15,6 @@ interface ChatContextType {
   updateChatName: (chatId: string, newName: string) => void;
   deleteCurrentChat: (chatId: string) => void;
   saveCurrentChat: (chat: SavedChat) => void;
-  
-  // Active chat management
-  isWelcomeTemplate: boolean;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -26,21 +23,9 @@ export const ChatProvider: React.FC<{
   children: React.ReactNode;
 }> = ({ children }) => {
   const router = useRouter();
-  const pathname = usePathname();
   
   // In-memory state
   const [savedChats, setSavedChats] = useState<SavedChat[]>(initialChats);
-  const [isWelcomeTemplate, setIsWelcomeTemplate] = useState(false);
-  
-  // Simply track if we're on the welcome page based on the current route
-  useEffect(() => {
-    // If we're at the root path, set welcome template flag
-    if (pathname === '/') {
-      setIsWelcomeTemplate(true);
-    } else {
-      setIsWelcomeTemplate(false);
-    }
-  }, [pathname]);
   
   // Create a new chat
   const createChat = (name?: string, customId?: string, skipNavigation?: boolean) => {
@@ -155,8 +140,7 @@ export const ChatProvider: React.FC<{
         createChat,
         updateChatName,
         deleteCurrentChat,
-        saveCurrentChat,
-        isWelcomeTemplate
+        saveCurrentChat
       }}
     >
       {children}

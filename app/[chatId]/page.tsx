@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useCallback } from 'react';
-import { useParams, useRouter, usePathname } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { ChatInterface } from '../components/ChatInterface';
 import { AppLayout } from '../components/AppLayout';
 import { useChatContext } from '../context/ChatContext';
@@ -10,7 +10,6 @@ import { SavedChat } from '../lib/chats';
 export default function ChatPage() {
   const params = useParams();
   const router = useRouter();
-  const pathname = usePathname();
   const chatId = params.chatId as string;
   const { savedChats, saveCurrentChat } = useChatContext();
   

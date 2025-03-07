@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Message, MessageRole } from './Message';
 import { NewMessageCell } from './NewMessageCell';
 import { LoadingMessage } from './LoadingMessage';
@@ -53,36 +53,6 @@ export function ChatInterface({ chat }: ChatInterfaceProps) {
     saveCurrentChat(updatedChat);
   }
   
-  // Function to create a new chat from current messages
-  const createNewChatFromMessages = (currentMessages: ChatMessage[]) => {
-    const defaultName = `New Chat ${new Date().toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric'
-    })}`;
-    
-    // Ensure each message has an ID
-    const messagesWithIds = currentMessages.map(msg => ({
-      ...msg,
-      id: msg.id || generateUUID()
-    }));
-    
-    const newChat: SavedChat = {
-      id: generateUUID(),
-      name: defaultName,
-      messages: messagesWithIds,
-      config: chat.config ?? DEFAULT_CONFIG,
-      updatedAt: new Date().toISOString()
-    };
-    
-    // First save the chat to context
-    saveCurrentChat(newChat);
-    
-    // Navigate to the new chat URL when needed
-    router.push(`/${newChat.id}`);
-  }
-
   // Unified message handling function to reduce duplication
   const addMessage = (options: {
     role: MessageRole,

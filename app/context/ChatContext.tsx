@@ -47,8 +47,14 @@ export const ChatProvider: React.FC<{
         }
       ],
       config: {
-        temperature: 0.7,
-        selectedPlugins: []
+        settings: [
+          {
+            id: 'temperature',
+            name: 'Temperature',
+            type: 'temperature',
+            value: 0.7
+          }
+        ]
       },
       updatedAt: new Date().toISOString()
     };
@@ -112,8 +118,7 @@ export const ChatProvider: React.FC<{
         const existingChat = prevChats[existingChatIndex];
         const hasChanges = 
           JSON.stringify(existingChat.messages) !== JSON.stringify(chat.messages) ||
-          existingChat.config.temperature !== chat.config.temperature ||
-          JSON.stringify(existingChat.config.selectedPlugins) !== JSON.stringify(chat.config.selectedPlugins) ||
+          JSON.stringify(existingChat.config.settings) !== JSON.stringify(chat.config.settings) ||
           existingChat.name !== chat.name;
         
         if (!hasChanges) {

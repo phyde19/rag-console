@@ -17,13 +17,55 @@ export interface ChatMessage {
   isLoading?: boolean;
 }
 
+// Setting types
+export type SettingType = 'text' | 'checkbox' | 'radio' | 'multiselect' | 'json' | 'temperature';
+
+export interface BaseSetting {
+  id: string;
+  name: string;
+  type: SettingType;
+}
+
+export interface TextSetting extends BaseSetting {
+  type: 'text';
+  value: string;
+}
+
+export interface CheckboxSetting extends BaseSetting {
+  type: 'checkbox';
+  value: boolean;
+}
+
+export interface MultiSelectSetting extends BaseSetting {
+  type: 'multiselect';
+  options: { id: string; name: string }[];
+  value: string[];
+}
+
+export interface RadioSetting extends BaseSetting {
+  type: 'radio';
+  options: { id: string; name: string }[];
+  value: string;
+}
+
+export interface JsonSetting extends BaseSetting {
+  type: 'json';
+  value: string; // JSON stored as string
+}
+
+export interface TemperatureSetting extends BaseSetting {
+  type: 'temperature';
+  value: number;
+}
+
+export type Setting = TextSetting | CheckboxSetting | RadioSetting | MultiSelectSetting | JsonSetting | TemperatureSetting;
+
 export interface SavedChat {
   id: string;
   name: string;
   messages: ChatMessage[];
   config: {
-    temperature: number;
-    selectedPlugins: string[];
+    settings: Setting[];
   };
   updatedAt: string;
 }
@@ -45,7 +87,23 @@ export const initialChats: SavedChat[] = [
       { id: generateUUID(), role: 'system', content: 'You are a helpful assistant for BlueCard.' },
       { id: generateUUID(), role: 'user', content: 'What is BlueCard?' }
     ],
-    config: { temperature: 0.7, selectedPlugins: ['bluecard_chat'] },
+    config: { 
+      settings: [
+        {
+          id: 'temperature',
+          name: 'Temperature',
+          type: 'temperature',
+          value: 0.7
+        },
+        {
+          id: 'plugins',
+          name: 'Plugins',
+          type: 'multiselect',
+          options: companyPlugins,
+          value: ['bluecard_chat']
+        }
+      ]
+    },
     updatedAt: '2025-03-05T10:30:00Z'
   },
   {
@@ -55,7 +113,23 @@ export const initialChats: SavedChat[] = [
       { id: generateUUID(), role: 'system', content: 'You are a technical support agent.' },
       { id: generateUUID(), role: 'user', content: 'How do I deploy to GCP?' }
     ],
-    config: { temperature: 0.5, selectedPlugins: ['gcp_chat', 'dscoe_docs_chat'] },
+    config: {
+      settings: [
+        {
+          id: 'temperature',
+          name: 'Temperature',
+          type: 'temperature',
+          value: 0.5
+        },
+        {
+          id: 'plugins',
+          name: 'Plugins',
+          type: 'multiselect',
+          options: companyPlugins,
+          value: ['gcp_chat', 'dscoe_docs_chat']
+        }
+      ]
+    },
     updatedAt: '2025-03-04T15:45:00Z'
   }
 ];

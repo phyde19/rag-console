@@ -5,14 +5,51 @@ import { AppLayout } from './components/AppLayout';
 
 export default function Home() {
   const [temperature, setTemperature] = useState(0.7);
-  const [selectedPlugins, setSelectedPlugins] = useState<string[]>([]);
+  const [localSettings, setLocalSettings] = useState<any[]>([
+    {
+      id: 'temperature',
+      name: 'Temperature',
+      type: 'temperature' as const,
+      value: temperature
+    }
+  ]);
+  
+  const handleSettingChange = (settingId: string, value: any) => {
+    setLocalSettings(prev => 
+      prev.map(setting => 
+        setting.id === settingId ? { ...setting, ...value } : setting
+      )
+    );
+    
+    // Special handling for temperature which needs to update the state variable too
+    if (settingId === 'temperature' && 'value' in value) {
+      setTemperature(value.value);
+    }
+  };
+  
+  const handleAddSetting = (newSetting: any) => {
+    setLocalSettings(prev => [...prev, newSetting]);
+  };
+  
+  const handleRemoveSetting = (settingId: string) => {
+    // Find the setting to check if it's a temperature setting
+    const settingToRemove = localSettings.find(setting => setting.id === settingId);
+    if (!settingToRemove || settingToRemove.type === 'temperature') {
+      // Don't allow removing temperature settings
+      return;
+    }
+    
+    setLocalSettings(prev => 
+      prev.filter(setting => setting.id !== settingId)
+    );
+  };
   
   return (
     <AppLayout
-      temperature={temperature}
-      onTemperatureChange={setTemperature}
-      selectedPlugins={selectedPlugins}
-      onPluginsChange={setSelectedPlugins}
+      settings={localSettings}
+      onSettingChange={handleSettingChange}
+      onAddSetting={handleAddSetting}
+      onRemoveSetting={handleRemoveSetting}
     >
       <div className="col-span-7 p-6 h-screen overflow-y-auto">
         <div className="max-w-4xl mx-auto">

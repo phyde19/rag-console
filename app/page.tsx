@@ -94,7 +94,7 @@ export default function Home() {
                   </li>
                   <li className="flex items-start">
                     <span className="text-indigo-500 mr-2">•</span>
-                    <span><span className="font-medium">Plugin Integration</span> - Test how conversations flow with different data source combinations</span>
+                    <span><span className="font-medium">Custom Settings</span> - Create and configure various settings to test different chat behaviors</span>
                   </li>
                   <li className="flex items-start">
                     <span className="text-indigo-500 mr-2">•</span>
@@ -151,7 +151,7 @@ export default function Home() {
                   'Add messages of different types (System, User, Assistant) using the "+" buttons',
                   'Edit message content by clicking on them',
                   'Click <span class="inline-flex items-center bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-md">Simulate Chat</span> to generate an AI response',
-                  'Adjust temperature and plugins in the right panel to modify behavior',
+                  'Configure custom settings in the right panel to customize chat behavior',
                   'Create multiple chats to compare different approaches'
                 ].map((item, index) => (
                   <li key={index} className="flex items-start">

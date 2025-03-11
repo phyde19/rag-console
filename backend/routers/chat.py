@@ -109,7 +109,6 @@ async def create_chat(chat_data: CreateChatSchema, session: SessionDep):
     # Add required temperature setting
     session.execute(insert(Setting).values(
         chat_id=chat_id,
-        setting_id="temperature",
         name="Temperature",
         type="temperature",
         value="0.7",

@@ -81,7 +81,7 @@ interface ChatStoreContextType {
   deleteChat: (chatId: string) => Promise<void>;
   
   // Message operations
-  addMessage: (role: 'system' | 'user' | 'assistant', content: string) => Promise<string>;
+  addMessage: (role: 'system' | 'user' | 'assistant', content: string, position?: number) => Promise<string>;
   updateMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   
@@ -414,7 +414,7 @@ export function ChatStoreProvider({ children }: { children: React.ReactNode }) {
     systemMessage: string = 'You are a helpful assistant.'
   ) => {
     dispatch({ type: 'SET_SAVING', payload: true });
-    dispatch({ type: 'SET_ERROR', payload: null });
+    // dispatch({ type: 'SET_ERROR', payload: null });
     
     try {
       const defaultName = name || `New Chat ${new Date().toLocaleString('en-US', {
@@ -428,7 +428,7 @@ export function ChatStoreProvider({ children }: { children: React.ReactNode }) {
       const newChat = await api.createChat(defaultName, systemMessage);
       
       // Update chat list
-      await loadChatList();
+    //   await loadChatList();
       
       return newChat.id;
     } catch (err) {
@@ -771,7 +771,7 @@ export function ChatStoreProvider({ children }: { children: React.ReactNode }) {
     
     // After chat is created, navigate to it
     // We don't need to load the chat, as the route change will trigger that
-    navigateToChat(chatId);
+    // navigateToChat(chatId);
   }, [createChat, navigateToChat]);
   
   // Delete chat and navigate elsewhere
@@ -886,7 +886,6 @@ export function ChatStoreProvider({ children }: { children: React.ReactNode }) {
             }
             
             await api.createSetting(pendingFork.targetId, {
-              setting_id: setting.id,
               name: setting.name,
               type: setting.type,
               value: valueStr,

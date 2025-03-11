@@ -74,7 +74,7 @@ export function ChatSidebar() {
             >
               <div className="font-medium truncate">{chat.name}</div>
               <div className="text-xs text-gray-500">
-                {new Date(chat.updated_at).toLocaleDateString()}
+                {new Date(chat.updatedAt).toLocaleDateString()}
               </div>
             </Link>
           ))}

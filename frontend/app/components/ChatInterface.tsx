@@ -1,13 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { Message, MessageRole } from './Message';
 import { NewMessageCell } from './NewMessageCell';
 import { LoadingMessage } from './LoadingMessage';
 import { AddMessageHoverUI } from './AddMessageHoverUI';
-import { useChatContext } from '../context/ChatContext';
-import { SavedChat, ChatMessage, companyPlugins, generateUUID } from '../lib/chats';
+import { useChatStore, Chat, ChatMessage } from '../context/ChatStore';
+import { companyPlugins, generateUUID } from '../lib/chats';
 
 // Default configuration
 const DEFAULT_CONFIG = {
@@ -15,21 +14,29 @@ const DEFAULT_CONFIG = {
   selectedPlugins: []
 };
 
-interface ChatInterfaceProps {
-  chat: SavedChat; // Now required since this component should only be used with a chat
-  temperature: number; // For backward compatibility
-  selectedPlugins: string[]; // For backward compatibility
-  onChatUpdated?: (updatedChat: SavedChat) => void; // Callback to inform parent of updates
-}
-
-export function ChatInterface({ chat, temperature, selectedPlugins, onChatUpdated }: ChatInterfaceProps) {
-  const router = useRouter();
+// No need for props anymore
+export function ChatInterface() {
   const { 
-    createChat, 
-    updateChatName, 
-    deleteCurrentChat, 
-    saveCurrentChat 
-  } = useChatContext();
+    currentChat,
+    updateChatName,
+    deleteAndNavigate,
+    forkChat,
+    addMessage,
+    updateMessage,
+    deleteMessage,
+    simulateMessage,
+    temperature,
+    selectedPlugins
+  } = useChatStore();
+  
+  // Early return if no chat is loaded
+  if (!currentChat) {
+    return (
+      <div className="col-span-7 p-4 h-screen flex items-center justify-center">
+        <div className="text-gray-500">No chat selected</div>
+      </div>
+    );
+  }
   
   // Only use local state for UI-specific elements
   const [isSimulating, setIsSimulating] = useState(false);
@@ -38,33 +45,17 @@ export function ChatInterface({ chat, temperature, selectedPlugins, onChatUpdate
   // Track whether to allow overwriting without confirmation
   const [allowOverwrite, setAllowOverwrite] = useState(false);
   
-  // Helper function to save changes to the chat context - keeping for compatibility
-  const saveChanges = (updatedMessages: ChatMessage[]) => {
-    // Ensure all messages have IDs
-    const messagesWithIds = updatedMessages.map(msg => ({
-      ...msg,
-      id: msg.id || generateUUID()
-    }));
+  // This helper is no longer needed with our new architecture, as we'll use 
+  // the direct CRUD operations from the hooks instead, but keeping for compatibility
+  // with existing code (will remove or refactor the references soon)
+  const saveChanges = async (updatedMessages: ChatMessage[]) => {
+    console.warn('saveChanges is deprecated, use direct CRUD operations instead');
     
-    const updatedChat: SavedChat = {
-      ...chat,
-      messages: messagesWithIds,
-      config: chat.config,
-      updatedAt: new Date().toISOString()
-    };
-    
-    saveCurrentChat(updatedChat).catch(err => {
-      console.error('Failed to save messages:', err);
-    });
-    
-    // Notify the parent component about the update
-    if (onChatUpdated) {
-      onChatUpdated(updatedChat);
-    }
+    // Will implement a pass-through to new architecture here if needed by existing code
   }
   
   // Unified message handling function to reduce duplication
-  const addMessage = (options: {
+  const handleAddMessage = async (options: {
     role: MessageRole,
     content?: string,
     autoEdit?: boolean,
@@ -72,44 +63,38 @@ export function ChatInterface({ chat, temperature, selectedPlugins, onChatUpdate
   }) => {
     const { role, content = '', autoEdit = true, position = null } = options;
     
-    // Create a new message object with ID and explicitly empty content if none provided
-    const newMessage: ChatMessage = { 
-      id: generateUUID(),
-      role, 
-      content: content || '' // Ensure content is explicitly an empty string if falsy
-    };
-    
-    // Create a new messages array
-    const updatedMessages = [...chat.messages];
-    updatedMessages.splice(position === null ? updatedMessages.length : position + 1, 0, newMessage);
-    
-    // Save changes to context
-    saveChanges(updatedMessages);
-    
-    // Set this new message to be in edit mode if autoEdit is true
-    if (autoEdit) {
-      setTimeout(() => {
-        setEditingId(newMessage.id);
-      }, 50);
+    try {
+      // Add message using the global hook, passing position if specified
+      const messageId = await addMessage(role, content, position !== null ? position : undefined);
+      
+      // Set this new message to be in edit mode if autoEdit is true
+      if (autoEdit) {
+        setTimeout(() => {
+          setEditingId(messageId);
+        }, 50);
+      }
+      
+      return messageId;
+    } catch (err) {
+      console.error('Failed to add message:', err);
+      return '';
     }
-    
-    return newMessage.id;
   }
   
   // Convenience functions that use the unified message handler
-  const handleAddMessageAtPosition = (afterIndex: number, role: MessageRole, content: string = '', autoEdit: boolean = true) => {
-    return addMessage({ role, content, autoEdit, position: afterIndex });
-  }
+  const handleAddMessageAtPosition = useCallback((afterIndex: number, role: MessageRole, content: string = '', autoEdit: boolean = true) => {
+    return handleAddMessage({ role, content, autoEdit, position: afterIndex });
+  }, [handleAddMessage]);
   
-  const handleAddMessage = (role: MessageRole, content: string = '', autoEdit: boolean = false) => {
-    return addMessage({ role, content, autoEdit });
-  }
+  const simpleAddMessage = useCallback((role: MessageRole, content: string = '', autoEdit: boolean = false) => {
+    return handleAddMessage({ role, content, autoEdit });
+  }, [handleAddMessage]);
   
   useEffect(() => {
     const handleAddNextMessage = (e: Event) => {
       const { afterId, role } = (e as CustomEvent).detail;
       // Find the index of the message with the given ID
-      const index = chat.messages.findIndex(msg => msg.id === afterId);
+      const index = currentChat.messages.findIndex(msg => msg.id === afterId);
       if (index !== -1) {
         handleAddMessageAtPosition(index, role, '', true);
       }
@@ -117,83 +102,51 @@ export function ChatInterface({ chat, temperature, selectedPlugins, onChatUpdate
     
     window.addEventListener('addNextMessage', handleAddNextMessage);
     return () => window.removeEventListener('addNextMessage', handleAddNextMessage);
-  }, [chat.messages, handleAddMessageAtPosition]);
+  }, [currentChat.messages, handleAddMessageAtPosition]);
   
-  const handleUpdateMessage = (messageId: string, content: string) => {
-    const updatedMessages = chat.messages.map(msg => 
-      msg.id === messageId ? { ...msg, content } : msg
-    );
-    
-    // Save changes to context - using an optimized version that updates the specific message
-    const updatedChat: SavedChat = {
-      ...chat,
-      messages: updatedMessages,
-      updatedAt: new Date().toISOString()
-    };
-    
-    // Save to backend
-    saveCurrentChat(updatedChat);
-    
-    // Notify the parent component about the update
-    if (onChatUpdated) {
-      onChatUpdated(updatedChat);
+  const handleUpdateMessage = async (messageId: string, content: string) => {
+    try {
+      // Update using the global hook
+      await updateMessage(messageId, content);
+      
+      // Clear the editing ID
+      setEditingId(null);
+    } catch (err) {
+      console.error('Failed to update message:', err);
     }
-    
-    // Clear the editing ID
-    setEditingId(null);
   }
   
-  const handleDeleteMessage = (messageId: string) => {
-    const updatedMessages = chat.messages.filter(msg => msg.id !== messageId);
-    
-    // Direct update approach instead of using saveChanges
-    const updatedChat: SavedChat = {
-      ...chat,
-      messages: updatedMessages,
-      updatedAt: new Date().toISOString()
-    };
-    
-    saveCurrentChat(updatedChat);
-    
-    // Notify the parent component about the update
-    if (onChatUpdated) {
-      onChatUpdated(updatedChat);
+  const handleDeleteMessage = async (messageId: string) => {
+    try {
+      // Delete using the global hook but catch and handle any errors locally
+      await deleteMessage(messageId);
+    } catch (err) {
+      console.error('Failed to delete message:', err);
+      // Don't rethrow - we want to handle errors locally
     }
   }
   
   const handleQuickAdd = useCallback((role: MessageRole) => {
-    handleAddMessage(role, '', true); // We still want editing for the quick-add buttons
-  }, [handleAddMessage]);
+    simpleAddMessage(role, '', true); // We still want editing for the quick-add buttons
+  }, []);
   
   // Fork the current chat
-  const handleForkChat = useCallback(() => {
+  const handleForkChat = useCallback(async () => {
     const newName = prompt('Enter a name for this forked chat:');
     if (!newName) return;
     
-    // Get configuration from chat or use defaults
-    const config = chat?.config ?? DEFAULT_CONFIG;
-    
-    // Ensure each message has an ID
-    const messagesWithIds = chat.messages.map(msg => ({
-      ...msg,
-      id: msg.id || generateUUID()
-    }));
-    
-    const newChat: SavedChat = {
-      id: generateUUID(),
-      name: newName,
-      messages: messagesWithIds,
-      config,
-      updatedAt: new Date().toISOString()
-    };
-    
-    saveCurrentChat(newChat);
-  }, [chat, saveCurrentChat]);
+    try {
+      // Use the store hook for forking chats
+      await forkChat(currentChat.id, newName);
+    } catch (err) {
+      console.error('Failed to fork chat:', err);
+    }
+  }, [forkChat, currentChat.id]);
   
   // Helper function to get simulated response
   const getSimulatedResponse = () => {
     // Check if plugins setting exists
-    const pluginsSetting = chat.config.settings.find(
+    const pluginsSetting = currentChat.config.settings.find(
       setting => setting.id === 'plugins' && setting.type === 'multiselect'
     );
     
@@ -212,7 +165,7 @@ export function ChatInterface({ chat, temperature, selectedPlugins, onChatUpdate
     }
     
     // Find any JSON settings to include in the response
-    const jsonSettings = chat.config.settings
+    const jsonSettings = currentChat.config.settings
       .filter(setting => {
         if (setting.type !== 'json') return false;
         if (setting.value.trim() === '{}') return false;
@@ -232,7 +185,7 @@ export function ChatInterface({ chat, temperature, selectedPlugins, onChatUpdate
       : '';
     
     // Find any text settings to include
-    const textSettings = chat.config.settings
+    const textSettings = currentChat.config.settings
       .filter(setting => setting.type === 'text' && setting.value.trim())
       .map(setting => `${setting.name}: ${setting.value}`);
     
@@ -241,12 +194,12 @@ export function ChatInterface({ chat, temperature, selectedPlugins, onChatUpdate
       : '';
     
     // Find any enabled checkboxes
-    const enabledFeatures = chat.config.settings
+    const enabledFeatures = currentChat.config.settings
       .filter(setting => setting.type === 'checkbox' && (setting as any).value === true)
       .map(setting => setting.name);
       
     // Find any radio button selections
-    const radioSelections = chat.config.settings
+    const radioSelections = currentChat.config.settings
       .filter(setting => setting.type === 'radio' && (setting as any).value)
       .map(setting => {
         const selectedOption = (setting as any).options.find(
@@ -277,42 +230,24 @@ export function ChatInterface({ chat, temperature, selectedPlugins, onChatUpdate
   // Handle re-simulation of a specific message
   const handleResimulate = (messageId: string) => {
     // Make sure there's at least one user message to respond to
-    const hasUserMessage = chat.messages.some(msg => msg.role === 'user');
+    const hasUserMessage = currentChat.messages.some(msg => msg.role === 'user');
     if (!hasUserMessage) {
       alert('Please add at least one user message before simulating.');
       return;
     }
     
-    simulateMessage(messageId, chat.messages);
+    handleSimulateMessage(messageId);
   }
   
   // Helper function to simulate a message
-  const simulateMessage = async (messageId: string, messages: ChatMessage[]) => {
+  const handleSimulateMessage = async (messageId: string) => {
     setIsSimulating(true);
     
-    // Mark the message as loading
-    const updatedMessages = messages.map(msg => 
-      msg.id === messageId ? { ...msg, isLoading: true } : msg
-    );
-    saveChanges(updatedMessages);
-    
     try {
-      // Simulated response for demo purposes
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Update the message with the simulated response
-      saveChanges(updatedMessages.map(msg => 
-        msg.id === messageId 
-          ? { ...msg, content: getSimulatedResponse(), isLoading: false } 
-          : msg
-      ));
+      // Use our store's simulateMessage function
+      await simulateMessage(messageId);
     } catch (error) {
       console.error('Simulation error:', error);
-      
-      // Reset loading state if there's an error
-      saveChanges(updatedMessages.map(msg => 
-        msg.id === messageId ? { ...msg, isLoading: false } : msg
-      ));
     } finally {
       setIsSimulating(false);
     }
@@ -321,13 +256,13 @@ export function ChatInterface({ chat, temperature, selectedPlugins, onChatUpdate
   // Main simulation function
   const handleSimulate = async () => {
     // Make sure there's at least one user message to respond to
-    if (!chat.messages.some(msg => msg.role === 'user')) {
+    if (!currentChat.messages.some(msg => msg.role === 'user')) {
       alert('Please add at least one user message before simulating.');
       return;
     }
     
     // Check if the last message is an assistant message
-    const lastMessage = chat.messages[chat.messages.length - 1];
+    const lastMessage = currentChat.messages[currentChat.messages.length - 1];
     
     // If the last message is an assistant message, we should update it instead of adding a new one
     if (lastMessage && lastMessage.role === 'assistant') {
@@ -339,36 +274,39 @@ export function ChatInterface({ chat, temperature, selectedPlugins, onChatUpdate
       }
       
       // Re-simulate the last message
-      await simulateMessage(lastMessage.id, chat.messages);
+      await handleSimulateMessage(lastMessage.id);
       return;
     }
     
     // Add a new assistant message and simulate it
-    const newMessage: ChatMessage = { 
-      id: generateUUID(),
-      role: 'assistant', 
-      content: ''
-    };
+    const messageId = await addMessage('assistant', '');
     
-    const updatedMessages = [...chat.messages, newMessage];
-    saveChanges(updatedMessages);
-    
-    await simulateMessage(newMessage.id, updatedMessages);
+    // Simulate the new message
+    await handleSimulateMessage(messageId);
   }
   
   // Chat name handling
-  const handleUpdateChatName = (chatId: string, newName: string) => {
+  const handleUpdateChatName = async (chatId: string, newName: string) => {
     if (!newName.trim()) return;
     
-    // Update name in context
-    updateChatName(chatId, newName);
-    setEditingChatName(null);
+    try {
+      // Update name using the store
+      await updateChatName(chatId, newName);
+      setEditingChatName(null);
+    } catch (err) {
+      console.error('Failed to update chat name:', err);
+    }
   }
   
   // Delete chat
-  const handleDeleteChat = (chatId: string) => {
+  const handleDeleteChat = async (chatId: string) => {
     if (!confirm('Are you sure you want to delete this chat?')) return;
-    deleteCurrentChat(chatId);
+    
+    try {
+      await deleteAndNavigate(chatId);
+    } catch (err) {
+      console.error('Failed to delete chat:', err);
+    }
   }
 
   return (
@@ -422,17 +360,17 @@ export function ChatInterface({ chat, temperature, selectedPlugins, onChatUpdate
         
         {/* Chat name with edit capability */}
         <div className="flex items-center">
-          {editingChatName === chat.id ? (
+          {editingChatName === currentChat.id ? (
             <div className="flex items-center w-full">
               <input
                 type="text"
-                defaultValue={chat.name}
+                defaultValue={currentChat.name}
                 className="flex-1 p-2 border rounded text-lg font-medium"
                 autoFocus
-                onBlur={(e) => handleUpdateChatName(chat.id, e.target.value)}
+                onBlur={(e) => handleUpdateChatName(currentChat.id, e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    handleUpdateChatName(chat.id, e.currentTarget.value);
+                    handleUpdateChatName(currentChat.id, e.currentTarget.value);
                   } else if (e.key === 'Escape') {
                     setEditingChatName(null);
                   }
@@ -443,19 +381,19 @@ export function ChatInterface({ chat, temperature, selectedPlugins, onChatUpdate
             <div className="flex items-center group">
               <h2 
                 className="text-lg font-medium cursor-pointer flex-1 hover:text-blue-600"
-                onClick={() => setEditingChatName(chat.id)}
+                onClick={() => setEditingChatName(currentChat.id)}
               >
-                {chat.name}
+                {currentChat.name}
               </h2>
               <button
-                onClick={() => setEditingChatName(chat.id)}
+                onClick={() => setEditingChatName(currentChat.id)}
                 className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-100 rounded"
                 title="Edit name"
               >
                 <EditIcon />
               </button>
               <button
-                onClick={() => handleDeleteChat(chat.id)}
+                onClick={() => handleDeleteChat(currentChat.id)}
                 className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 text-red-500 rounded"
                 title="Delete chat"
               >
@@ -467,7 +405,7 @@ export function ChatInterface({ chat, temperature, selectedPlugins, onChatUpdate
       </div>
       
       <div>
-        {chat.messages.map((message, index) => (
+        {currentChat.messages.map((message, index) => (
           <div key={message.id}>
             {message.isLoading ? (
               <LoadingMessage />
@@ -483,10 +421,10 @@ export function ChatInterface({ chat, temperature, selectedPlugins, onChatUpdate
               />
             )}
             {/* Add the hover UI after each message except the last one */}
-            {index < chat.messages.length - 1 && (
+            {index < currentChat.messages.length - 1 && (
               <AddMessageHoverUI 
                 onAdd={(role) => {
-                  const position = chat.messages.findIndex(msg => msg.id === message.id);
+                  const position = currentChat.messages.findIndex(msg => msg.id === message.id);
                   handleAddMessageAtPosition(position, role, '', true);
                 }} 
               />
@@ -495,11 +433,11 @@ export function ChatInterface({ chat, temperature, selectedPlugins, onChatUpdate
         ))}
         
         {/* Add hover UI after the last message */}
-        {chat.messages.length > 0 && (
+        {currentChat.messages.length > 0 && (
           <AddMessageHoverUI onAdd={handleQuickAdd} />
         )}
         
-        <NewMessageCell onAdd={handleAddMessage} />
+        <NewMessageCell onAdd={simpleAddMessage} />
       </div>
     </div>
   );

@@ -1,31 +1,38 @@
 'use client';
 
 import { useState } from 'react';
-import { generateUUID, Setting, SettingType } from '../lib/chats';
+import { ChatSetting, useChatStore } from '@/app/context/ChatStore';
 
 interface SettingsPanelProps {
-  settings: Setting[];
-  onSettingChange: (settingId: string, value: any) => void;
-  onAddSetting: (setting: Setting) => void;
-  onRemoveSetting: (settingId: string) => void;
+  settings: ChatSetting[] | null;
+  updateSetting: (settingId: string, value: any) => void;
+  onAddSetting: (setting: ChatSetting) => void;
+  removeSetting: (settingId: string) => void;
 }
 
-export function SettingsPanel({
-  settings,
-  onSettingChange,
-  onAddSetting,
-  onRemoveSetting
-}: SettingsPanelProps) {
+export function SettingsPanel() {
+
+  const { 
+    createAndNavigate,
+    updateSetting,
+    addSetting,
+    removeSetting,
+    currentChat
+  } = useChatStore();
+
+  const settings = currentChat?.config.settings || [];
+
   const [isAddingNewSetting, setIsAddingNewSetting] = useState(false);
-  const [newSettingType, setNewSettingType] = useState<SettingType>('text');
+  // TODO: change to algebraic types corresponding to backend schema
+  const [newSettingType, setNewSettingType] = useState<string>('text');
   const [newSettingName, setNewSettingName] = useState('');
 
   // Create a new setting based on the selected type
   const createNewSetting = () => {
     if (!newSettingName.trim()) return;
     
-    let newSetting: Setting;
-    const id = generateUUID();
+    let newSetting: ChatSetting | null = null;
+    const id = crypto.randomUUID();
     
     switch (newSettingType) {
       case 'text':
@@ -72,7 +79,7 @@ export function SettingsPanel({
         break;
     }
     
-    onAddSetting(newSetting);
+    addSetting(newSetting!);
     setNewSettingName('');
     setIsAddingNewSetting(false);
   };
@@ -83,11 +90,11 @@ export function SettingsPanel({
     if ((setting?.type === 'multiselect' || setting?.type === 'radio') && optionName.trim()) {
       const newOption = { id: generateUUID(), name: optionName };
       const updatedOptions = [...setting.options, newOption];
-      onSettingChange(settingId, { options: updatedOptions });
+      updateSetting(settingId, { options: updatedOptions });
       
       // For radio buttons, if this is the first option, select it automatically
       if (setting.type === 'radio' && setting.options.length === 0 && setting.value === '') {
-        onSettingChange(settingId, { value: newOption.id });
+        updateSetting(settingId, { value: newOption.id });
       }
     }
   };
@@ -99,7 +106,7 @@ export function SettingsPanel({
       const newValue = setting.value.includes(optionId)
         ? setting.value.filter(id => id !== optionId)
         : [...setting.value, optionId];
-      onSettingChange(settingId, { value: newValue });
+      updateSetting(settingId, { value: newValue });
     }
   };
   
@@ -107,14 +114,14 @@ export function SettingsPanel({
   const setRadioOption = (settingId: string, optionId: string) => {
     const setting = settings.find(s => s.id === settingId);
     if (setting?.type === 'radio') {
-      onSettingChange(settingId, { value: optionId });
+      updateSetting(settingId, { value: optionId });
     }
   };
 
   // Handle JSON validation and updates
   const validateAndUpdateJson = (settingId: string, jsonString: string) => {
     // Always update the value to allow typing
-    onSettingChange(settingId, { value: jsonString });
+    updateSetting(settingId, { value: jsonString });
     
     // Try to validate for UI feedback if needed
     try {
@@ -144,7 +151,7 @@ export function SettingsPanel({
               max="1"
               step="0.1"
               value={setting.value}
-              onChange={(e) => onSettingChange(setting.id, { value: parseFloat(e.target.value) })}
+              onChange={(e) => updateSetting(setting.id, { value: parseFloat(e.target.value) })}
               className="w-full"
             />
             <div className="flex justify-between text-xs text-gray-500">
@@ -163,7 +170,7 @@ export function SettingsPanel({
                 {setting.name}
               </label>
               <button 
-                onClick={() => onRemoveSetting(setting.id)}
+                onClick={() => removeSetting(setting.id)}
                 className="text-xs text-red-500 hover:text-red-700"
               >
                 Remove
@@ -173,7 +180,7 @@ export function SettingsPanel({
               id={`setting-${setting.id}`}
               type="text"
               value={setting.value}
-              onChange={(e) => onSettingChange(setting.id, { value: e.target.value })}
+              onChange={(e) => updateSetting(setting.id, { value: e.target.value })}
               className="w-full p-2 border rounded text-sm"
             />
           </div>
@@ -186,7 +193,7 @@ export function SettingsPanel({
               <div className="flex items-center">
                 <div 
                   className="relative w-9 h-5 cursor-pointer" 
-                  onClick={() => onSettingChange(setting.id, { value: !setting.value })}
+                  onClick={() => updateSetting(setting.id, { value: !setting.value })}
                 >
                   {/* Background */}
                   <div className={`absolute inset-0 rounded-full transition-colors ${setting.value ? "bg-blue-500" : "bg-gray-300"}`}></div>
@@ -197,7 +204,7 @@ export function SettingsPanel({
                 <span className="ml-3 text-sm font-medium">{setting.name}</span>
               </div>
               <button 
-                onClick={() => onRemoveSetting(setting.id)}
+                onClick={() => removeSetting(setting.id)}
                 className="text-xs text-red-500 hover:text-red-700"
               >
                 Remove
@@ -214,7 +221,7 @@ export function SettingsPanel({
                 {setting.name}
               </label>
               <button 
-                onClick={() => onRemoveSetting(setting.id)}
+                onClick={() => removeSetting(setting.id)}
                 className="text-xs text-red-500 hover:text-red-700"
               >
                 Remove
@@ -278,7 +285,7 @@ export function SettingsPanel({
                 {setting.name}
               </label>
               <button 
-                onClick={() => onRemoveSetting(setting.id)}
+                onClick={() => removeSetting(setting.id)}
                 className="text-xs text-red-500 hover:text-red-700"
               >
                 Remove
@@ -341,7 +348,7 @@ export function SettingsPanel({
                 {setting.name}
               </label>
               <button 
-                onClick={() => onRemoveSetting(setting.id)}
+                onClick={() => removeSetting(setting.id)}
                 className="text-xs text-red-500 hover:text-red-700"
               >
                 Remove
@@ -369,7 +376,7 @@ export function SettingsPanel({
                     setting.value.substring(end);
                   
                   // Update the value
-                  onSettingChange(setting.id, { value: newValue });
+                  updateSetting(setting.id, { value: newValue });
                   
                   // Set cursor position after the inserted tab
                   // Need to use setTimeout to ensure the DOM has updated
@@ -384,7 +391,7 @@ export function SettingsPanel({
                   // Format JSON on blur only if it's valid
                   JSON.parse(e.target.value); // Test if valid
                   const formattedJson = JSON.stringify(JSON.parse(e.target.value), null, 2);
-                  onSettingChange(setting.id, { value: formattedJson });
+                  updateSetting(setting.id, { value: formattedJson });
                 } catch (error) {
                   // If it's not valid JSON, leave it as is
                 }

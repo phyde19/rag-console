@@ -1,15 +1,14 @@
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { useChatContext } from '../context/ChatContext';
 import { useState } from 'react';
+import { useChatStore } from '../context/ChatStore';
 import { LoadingSpinner } from './LoadingSpinner';
 
 export function ChatSidebar() {
   const pathname = usePathname();
-  const router = useRouter();
-  const { savedChats, createChat, loading } = useChatContext();
+  const { sortedChats, createAndNavigate, isLoading } = useChatStore();
   const [isCreatingChat, setIsCreatingChat] = useState(false);
   
   // The elegantly simple solution: we treat URL as the source of truth
@@ -20,8 +19,8 @@ export function ChatSidebar() {
   const handleNewChat = async () => {
     setIsCreatingChat(true);
     try {
-      // Create the chat using the API, which will handle navigation
-      await createChat();
+      // Create the chat using the combined hook, which will handle both creation and navigation
+      await createAndNavigate();
     } catch (err) {
       console.error('Failed to create chat:', err);
     } finally {
@@ -34,7 +33,7 @@ export function ChatSidebar() {
       <div className="mb-4">
         <button 
           onClick={handleNewChat}
-          disabled={isCreatingChat || loading}
+          disabled={isCreatingChat || isLoading}
           className="w-full py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center justify-center gap-1 disabled:opacity-50"
         >
           {isCreatingChat ? (
@@ -62,11 +61,11 @@ export function ChatSidebar() {
       </div>
       
       <div className="mt-4">
-        {savedChats.length > 0 && (
+        {sortedChats.length > 0 && (
           <div className="text-xs text-gray-500 uppercase font-semibold mb-2">Saved Chats</div>
         )}
         <div className="space-y-2">
-          {savedChats.map(chat => (
+          {sortedChats.map(chat => (
             <Link
               href={`/${chat.id}`}
               key={chat.id}
@@ -75,11 +74,11 @@ export function ChatSidebar() {
             >
               <div className="font-medium truncate">{chat.name}</div>
               <div className="text-xs text-gray-500">
-                {new Date(chat.updatedAt).toLocaleDateString()}
+                {new Date(chat.updated_at).toLocaleDateString()}
               </div>
             </Link>
           ))}
-          {savedChats.length === 0 && (
+          {sortedChats.length === 0 && (
             <div className="text-sm text-gray-400 italic p-2">
               No saved chats yet
             </div>

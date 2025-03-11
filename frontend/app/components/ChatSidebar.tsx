@@ -3,30 +3,30 @@
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useChatContext } from '../context/ChatContext';
-import { generateUUID } from '../lib/chats';
+import { useState } from 'react';
+import { LoadingSpinner } from './LoadingSpinner';
 
 export function ChatSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { savedChats, createChat } = useChatContext();
+  const { savedChats, createChat, loading } = useChatContext();
+  const [isCreatingChat, setIsCreatingChat] = useState(false);
   
   // The elegantly simple solution: we treat URL as the source of truth
   // The only reason to highlight a chat is if it's in the URL
   const activeChatId = pathname === '/' ? null : pathname.replace('/', '');
   
   // Create a new chat using proper routing
-  const handleNewChat = () => {
-    // Create the new chat using the context's function - don't skip navigation
-    // Let the router handle the navigation properly
-    const newChatId = generateUUID()
-    const newChat = createChat(undefined, newChatId);
-    window.history.pushState({}, '', `/${newChatId}`);
-    
-    // Force a complete reload of the page to create a clean state
-    // This is the most robust solution for ensuring clean state
-    setTimeout(() => {
-      router.refresh();
-    }, 50);
+  const handleNewChat = async () => {
+    setIsCreatingChat(true);
+    try {
+      // Create the chat using the API, which will handle navigation
+      await createChat();
+    } catch (err) {
+      console.error('Failed to create chat:', err);
+    } finally {
+      setIsCreatingChat(false);
+    }
   };
   
   return (
@@ -34,10 +34,20 @@ export function ChatSidebar() {
       <div className="mb-4">
         <button 
           onClick={handleNewChat}
-          className="w-full py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center justify-center gap-1"
+          disabled={isCreatingChat || loading}
+          className="w-full py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center justify-center gap-1 disabled:opacity-50"
         >
-          <PlusIcon />
-          <span>New Chat</span>
+          {isCreatingChat ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+              <span>Creating...</span>
+            </>
+          ) : (
+            <>
+              <PlusIcon />
+              <span>New Chat</span>
+            </>
+          )}
         </button>
       </div>
       

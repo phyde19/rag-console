@@ -19,9 +19,10 @@ interface ChatInterfaceProps {
   chat: SavedChat; // Now required since this component should only be used with a chat
   temperature: number; // For backward compatibility
   selectedPlugins: string[]; // For backward compatibility
+  onChatUpdated?: (updatedChat: SavedChat) => void; // Callback to inform parent of updates
 }
 
-export function ChatInterface({ chat, temperature, selectedPlugins }: ChatInterfaceProps) {
+export function ChatInterface({ chat, temperature, selectedPlugins, onChatUpdated }: ChatInterfaceProps) {
   const router = useRouter();
   const { 
     createChat, 
@@ -37,7 +38,7 @@ export function ChatInterface({ chat, temperature, selectedPlugins }: ChatInterf
   // Track whether to allow overwriting without confirmation
   const [allowOverwrite, setAllowOverwrite] = useState(false);
   
-  // Helper function to save changes to the chat context
+  // Helper function to save changes to the chat context - keeping for compatibility
   const saveChanges = (updatedMessages: ChatMessage[]) => {
     // Ensure all messages have IDs
     const messagesWithIds = updatedMessages.map(msg => ({
@@ -52,7 +53,14 @@ export function ChatInterface({ chat, temperature, selectedPlugins }: ChatInterf
       updatedAt: new Date().toISOString()
     };
     
-    saveCurrentChat(updatedChat);
+    saveCurrentChat(updatedChat).catch(err => {
+      console.error('Failed to save messages:', err);
+    });
+    
+    // Notify the parent component about the update
+    if (onChatUpdated) {
+      onChatUpdated(updatedChat);
+    }
   }
   
   // Unified message handling function to reduce duplication
@@ -116,8 +124,20 @@ export function ChatInterface({ chat, temperature, selectedPlugins }: ChatInterf
       msg.id === messageId ? { ...msg, content } : msg
     );
     
-    // Save changes to context
-    saveChanges(updatedMessages);
+    // Save changes to context - using an optimized version that updates the specific message
+    const updatedChat: SavedChat = {
+      ...chat,
+      messages: updatedMessages,
+      updatedAt: new Date().toISOString()
+    };
+    
+    // Save to backend
+    saveCurrentChat(updatedChat);
+    
+    // Notify the parent component about the update
+    if (onChatUpdated) {
+      onChatUpdated(updatedChat);
+    }
     
     // Clear the editing ID
     setEditingId(null);
@@ -126,8 +146,19 @@ export function ChatInterface({ chat, temperature, selectedPlugins }: ChatInterf
   const handleDeleteMessage = (messageId: string) => {
     const updatedMessages = chat.messages.filter(msg => msg.id !== messageId);
     
-    // Save changes to context
-    saveChanges(updatedMessages);
+    // Direct update approach instead of using saveChanges
+    const updatedChat: SavedChat = {
+      ...chat,
+      messages: updatedMessages,
+      updatedAt: new Date().toISOString()
+    };
+    
+    saveCurrentChat(updatedChat);
+    
+    // Notify the parent component about the update
+    if (onChatUpdated) {
+      onChatUpdated(updatedChat);
+    }
   }
   
   const handleQuickAdd = useCallback((role: MessageRole) => {

@@ -3,7 +3,6 @@
 import React, { createContext, useContext, useReducer, useCallback, useMemo, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { api } from '../lib/api';
-import { generateUUID } from '../lib/chats';
 
 // Define core types
 export interface ChatMessage {
@@ -14,7 +13,7 @@ export interface ChatMessage {
 }
 
 export interface ChatSetting {
-  id: string;
+  id: string; // Backend-generated UUID
   name: string;
   type: string;
   value: any;
@@ -63,6 +62,8 @@ type ChatStoreAction =
   | { type: 'INSERT_MESSAGE', payload: { message: ChatMessage, position: number } }
   | { type: 'UPDATE_MESSAGE', payload: { messageId: string, content: string } }
   | { type: 'DELETE_MESSAGE', payload: { messageId: string } }
+  | { type: 'REPLACE_TEMP_MESSAGE', payload: { tempId: string, message: ChatMessage } }
+  | { type: 'REMOVE_TEMP_MESSAGE', payload: { tempId: string } }
   | { type: 'UPDATE_SETTING', payload: { settingId: string, value: any } }
   | { type: 'ADD_SETTING', payload: { setting: ChatSetting } }
   | { type: 'REMOVE_SETTING', payload: { settingId: string } };
@@ -130,7 +131,7 @@ function convertApiChatToChat(apiChat: any): Chat {
     }
     
     return {
-      id: setting.setting_id,
+      id: setting.id,
       name: setting.name,
       type: setting.type,
       value,
@@ -264,6 +265,38 @@ function chatStoreReducer(state: ChatStoreState, action: ChatStoreAction): ChatS
               ...state.currentChat,
               messages: state.currentChat.messages.filter(
                 msg => msg.id !== action.payload.messageId
+              ),
+              updatedAt: new Date().toISOString()
+            }
+          : null
+      };
+      
+    case 'REPLACE_TEMP_MESSAGE':
+      // Replace a temporary message with the real one from backend
+      return {
+        ...state,
+        currentChat: state.currentChat
+          ? {
+              ...state.currentChat,
+              messages: state.currentChat.messages.map(msg =>
+                msg.id === action.payload.tempId
+                  ? action.payload.message
+                  : msg
+              ),
+              updatedAt: new Date().toISOString()
+            }
+          : null
+      };
+      
+    case 'REMOVE_TEMP_MESSAGE':
+      // Remove a temporary message (on error)
+      return {
+        ...state,
+        currentChat: state.currentChat
+          ? {
+              ...state.currentChat,
+              messages: state.currentChat.messages.filter(
+                msg => msg.id !== action.payload.tempId
               ),
               updatedAt: new Date().toISOString()
             }
@@ -469,17 +502,16 @@ export function ChatStoreProvider({ children }: { children: React.ReactNode }) {
   ) => {
     if (!state.currentChat) throw new Error('No chat is currently loaded');
     
-    // Create message ID
-    const messageId = generateUUID();
+    // Create a temporary loading state for UI feedback
+    const tempId = `temp-${crypto.randomUUID()}`;
     
-    // Optimistically update UI
     // If position is specified, we need to insert at that position
     if (position !== undefined) {
       // We need to create a custom reducer action for position-specific inserts
       dispatch({
         type: 'INSERT_MESSAGE',
         payload: {
-          message: { id: messageId, role, content },
+          message: { id: tempId, role, content, isLoading: true },
           position: position + 1 // Insert after the specified position
         }
       });
@@ -488,19 +520,40 @@ export function ChatStoreProvider({ children }: { children: React.ReactNode }) {
       dispatch({
         type: 'ADD_MESSAGE',
         payload: {
-          message: { id: messageId, role, content }
+          message: { id: tempId, role, content, isLoading: true }
         }
       });
     }
     
     try {
       // Create in API - note that the API might not support ordering
-      // so we're just creating the message without position
-      await api.createMessage(state.currentChat.id, role, content);
-      return messageId;
+      // Let the backend generate the real UUID
+      const sequence = position !== undefined ? position + 1 : undefined;
+      const response = await api.createMessage(state.currentChat.id, role, content, sequence);
+      
+      // Replace temporary message with the real one from backend
+      dispatch({
+        type: 'REPLACE_TEMP_MESSAGE',
+        payload: {
+          tempId,
+          message: {
+            id: response.id,
+            role: response.role as 'system' | 'user' | 'assistant',
+            content: response.content
+          }
+        }
+      });
+      
+      return response.id;
     } catch (err) {
       console.error('Failed to add message:', err);
       dispatch({ type: 'SET_ERROR', payload: 'Failed to add message' });
+      
+      // Remove the temporary message on error
+      dispatch({
+        type: 'REMOVE_TEMP_MESSAGE',
+        payload: { tempId }
+      });
       
       // Reload chat to get correct state
       const chatId = state.currentChat.id; // Store ID before potential state changes
@@ -581,7 +634,7 @@ export function ChatStoreProvider({ children }: { children: React.ReactNode }) {
         valueStr = JSON.stringify(value);
       }
       
-      // Update in API
+      // Update in API - using UUID directly as parameter
       await api.updateSetting(state.currentChat.id, settingId, valueStr);
     } catch (err) {
       console.error('Failed to update setting:', err);
@@ -598,11 +651,8 @@ export function ChatStoreProvider({ children }: { children: React.ReactNode }) {
   const addSetting = useCallback(async (setting: ChatSetting) => {
     if (!state.currentChat) return;
     
-    // Optimistically update UI
-    dispatch({
-      type: 'ADD_SETTING',
-      payload: { setting }
-    });
+    // We won't do optimistic update here since we need the backend-generated ID
+    // First create in backend, then update UI
     
     try {
       // Convert value to string for API
@@ -611,9 +661,8 @@ export function ChatStoreProvider({ children }: { children: React.ReactNode }) {
         valueStr = JSON.stringify(setting.value);
       }
       
-      // Create in API
-      await api.createSetting(state.currentChat.id, {
-        setting_id: setting.id,
+      // Create in API (backend will generate the UUID)
+      const response = await api.createSetting(state.currentChat.id, {
         name: setting.name,
         type: setting.type,
         value: valueStr,
@@ -621,6 +670,24 @@ export function ChatStoreProvider({ children }: { children: React.ReactNode }) {
           id: opt.id,
           name: opt.name
         }))
+      });
+      
+      // Update UI with the backend-created setting that includes the proper UUID
+      dispatch({
+        type: 'ADD_SETTING',
+        payload: { 
+          setting: {
+            id: response.id,
+            name: response.name,
+            type: response.type,
+            value: response.type === 'checkbox' 
+              ? response.value === 'true'
+              : response.type === 'multiselect'
+                ? JSON.parse(response.value || '[]')
+                : response.value,
+            options: response.options || []
+          }
+        }
       });
     } catch (err) {
       console.error('Failed to add setting:', err);
@@ -644,7 +711,7 @@ export function ChatStoreProvider({ children }: { children: React.ReactNode }) {
     });
     
     try {
-      // Delete in API
+      // Delete in API using UUID directly
       await api.deleteSetting(state.currentChat.id, settingId);
     } catch (err) {
       console.error('Failed to remove setting:', err);

@@ -1,17 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { ChatSetting, useChatStore } from '@/app/context/ChatStore';
-
-interface SettingsPanelProps {
-  settings: ChatSetting[] | null;
-  updateSetting: (settingId: string, value: any) => void;
-  onAddSetting: (setting: ChatSetting) => void;
-  removeSetting: (settingId: string) => void;
-}
+import { useChatStore } from '@/app/context/ChatStore';
 
 export function SettingsPanel() {
-
   const { 
     createAndNavigate,
     updateSetting,
@@ -31,13 +23,12 @@ export function SettingsPanel() {
   const createNewSetting = () => {
     if (!newSettingName.trim()) return;
     
-    let newSetting: ChatSetting | null = null;
-    const id = crypto.randomUUID();
+    let newSetting: any = null;
+    // No need for frontend-generated ID, backend will create it
     
     switch (newSettingType) {
       case 'text':
         newSetting = {
-          id,
           name: newSettingName,
           type: 'text',
           value: ''
@@ -45,7 +36,6 @@ export function SettingsPanel() {
         break;
       case 'checkbox':
         newSetting = {
-          id,
           name: newSettingName,
           type: 'checkbox',
           value: false
@@ -53,7 +43,6 @@ export function SettingsPanel() {
         break;
       case 'radio':
         newSetting = {
-          id,
           name: newSettingName,
           type: 'radio',
           options: [],
@@ -62,7 +51,6 @@ export function SettingsPanel() {
         break;
       case 'multiselect':
         newSetting = {
-          id,
           name: newSettingName,
           type: 'multiselect',
           options: [],
@@ -71,7 +59,6 @@ export function SettingsPanel() {
         break;
       case 'json':
         newSetting = {
-          id,
           name: newSettingName,
           type: 'json',
           value: '{}'
@@ -88,12 +75,14 @@ export function SettingsPanel() {
   const addOptionToSetting = (settingId: string, optionName: string) => {
     const setting = settings.find(s => s.id === settingId);
     if ((setting?.type === 'multiselect' || setting?.type === 'radio') && optionName.trim()) {
-      const newOption = { id: generateUUID(), name: optionName };
-      const updatedOptions = [...setting.options, newOption];
+      // Backend should handle UUID generation, but for options we still need client-side IDs
+      // since we don't persist these individually to the backend
+      const newOption = { id: crypto.randomUUID(), name: optionName };
+      const updatedOptions = [...(setting.options || []), newOption];
       updateSetting(settingId, { options: updatedOptions });
       
       // For radio buttons, if this is the first option, select it automatically
-      if (setting.type === 'radio' && setting.options.length === 0 && setting.value === '') {
+      if (setting.type === 'radio' && (!setting.options || setting.options.length === 0) && setting.value === '') {
         updateSetting(settingId, { value: newOption.id });
       }
     }
@@ -133,7 +122,7 @@ export function SettingsPanel() {
   };
 
   // Render a setting based on its type
-  const renderSetting = (setting: Setting) => {
+  const renderSetting = (setting: any) => {
     switch (setting.type) {
       case 'temperature':
         return (
@@ -432,7 +421,7 @@ export function SettingsPanel() {
             <label className="block text-xs mb-1">Setting Type</label>
             <select
               value={newSettingType}
-              onChange={(e) => setNewSettingType(e.target.value as SettingType)}
+              onChange={(e) => setNewSettingType(e.target.value)}
               className="w-full p-2 border rounded text-sm"
             >
               <option value="text">Text Input</option>

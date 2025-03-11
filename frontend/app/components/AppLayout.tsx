@@ -42,12 +42,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       {children}
       
       {/* Right sidebar - Settings panel */}
-    <SettingsPanel 
-        settings={currentChat?.config.settings || null}
-        onSettingChange={updateSetting}
-        onAddSetting={addSetting}
-        onRemoveSetting={removeSetting}
-    />
+      <SettingsPanel />
     </div>
   );
 }

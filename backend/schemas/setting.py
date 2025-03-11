@@ -14,7 +14,6 @@ class SettingOptionSchema(BaseModel):
 
 class SettingSchema(BaseModel):
     id: UUID4
-    setting_id: str
     name: str
     type: str
     value: str
@@ -27,7 +26,6 @@ class SettingSchema(BaseModel):
 
 
 class CreateSettingSchema(BaseModel):
-    setting_id: str
     name: str
     type: str
     value: str

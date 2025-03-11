@@ -29,7 +29,6 @@ export interface SettingOption {
 
 export interface Setting {
   id: string;
-  setting_id: string;
   name: string;
   type: string;
   value: string;
@@ -147,7 +146,6 @@ class ApiClient {
 
   // Setting endpoints
   async createSetting(chatId: string, setting: {
-    setting_id: string;
     name: string;
     type: string;
     value: string;

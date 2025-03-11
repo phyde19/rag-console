@@ -113,7 +113,6 @@ class Setting(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     chat_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("chat.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(String(128), nullable=False)
-    setting_id: Mapped[str] = mapped_column(String(128), nullable=False)
     type: Mapped[str] = mapped_column(Enum(SettingType), nullable=False)
     value: Mapped[str] = mapped_column(Text, nullable=False, default="")
     # Flag to indicate if setting is required (like temperature) and can't be deleted
@@ -190,7 +189,6 @@ def seed_db():
     # Add required temperature settings for both chats
     bluecard_temp = session.execute(insert(Setting).values(
         chat_id=bluecard_id,
-        setting_id="temperature",
         name="Temperature",
         type=SettingType.TEMPERATURE,
         value="0.7",
@@ -199,7 +197,6 @@ def seed_db():
     
     tech_temp = session.execute(insert(Setting).values(
         chat_id=tech_support_id,
-        setting_id="temperature",
         name="Temperature",
         type=SettingType.TEMPERATURE,
         value="0.5",
@@ -209,7 +206,6 @@ def seed_db():
     # Add plugin settings
     bluecard_plugins = session.execute(insert(Setting).values(
         chat_id=bluecard_id,
-        setting_id="plugins",
         name="Plugins",
         type=SettingType.MULTISELECT,
         value='["bluecard_chat"]'
@@ -217,7 +213,6 @@ def seed_db():
     
     tech_plugins = session.execute(insert(Setting).values(
         chat_id=tech_support_id,
-        setting_id="plugins",
         name="Plugins",
         type=SettingType.MULTISELECT,
         value='["gcp_chat", "dscoe_docs_chat"]'

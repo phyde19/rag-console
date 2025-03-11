@@ -25,27 +25,19 @@ async def create_setting(
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
-    # Check if setting with this ID already exists for this chat
-    existing = session.execute(
-        select(Setting).where(
-            and_(Setting.chat_id == chat_id, Setting.setting_id == setting_data.setting_id)
-        )
-    ).scalar_one_or_none()
-    if existing:
-        raise HTTPException(status_code=400, detail=f"Setting with ID '{setting_data.setting_id}' already exists for this chat")
-    
     # Validate setting type
     try:
         setting_type = SettingType(setting_data.type)
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid setting type. Must be one of: {', '.join([t.value for t in SettingType])}")
     
-    # Insert the setting
+    # Generate UUID for the setting
     setting_id = uuid.uuid4()
+    
+    # Insert the setting
     session.execute(insert(Setting).values(
         id=setting_id,
         chat_id=chat_id,
-        setting_id=setting_data.setting_id,
         name=setting_data.name,
         type=setting_type,
         value=setting_data.value,
@@ -106,7 +98,7 @@ async def create_setting(
 @router.put("/{setting_id}", response_model=SettingSchema)
 async def update_setting(
     chat_id: UUID4,
-    setting_id: str,  # This is the setting_id field, not the UUID
+    setting_id: UUID4,  # Now using the UUID primary key
     setting_data: UpdateSettingSchema,
     session: SessionDep
 ):
@@ -114,7 +106,7 @@ async def update_setting(
     # Find the setting
     setting = session.execute(
         select(Setting).where(
-            and_(Setting.chat_id == chat_id, Setting.setting_id == setting_id)
+            and_(Setting.chat_id == chat_id, Setting.id == setting_id)
         )
     ).scalar_one_or_none()
     
@@ -124,7 +116,7 @@ async def update_setting(
     # Update the setting
     session.execute(
         update(Setting)
-        .where(and_(Setting.chat_id == chat_id, Setting.setting_id == setting_id))
+        .where(and_(Setting.chat_id == chat_id, Setting.id == setting_id))
         .values(value=setting_data.value, updated_at=datetime.now())
     )
     
@@ -137,7 +129,7 @@ async def update_setting(
     # Get the updated setting
     updated_setting = session.execute(
         select(Setting).where(
-            and_(Setting.chat_id == chat_id, Setting.setting_id == setting_id)
+            and_(Setting.chat_id == chat_id, Setting.id == setting_id)
         )
     ).scalar_one()
     
@@ -171,14 +163,14 @@ async def update_setting(
 @router.delete("/{setting_id}")
 async def delete_setting(
     chat_id: UUID4,
-    setting_id: str,  # This is the setting_id field, not the UUID
+    setting_id: UUID4,  # Now using the UUID primary key
     session: SessionDep
 ):
     """Delete a setting"""
     # Find the setting
     setting = session.execute(
         select(Setting).where(
-            and_(Setting.chat_id == chat_id, Setting.setting_id == setting_id)
+            and_(Setting.chat_id == chat_id, Setting.id == setting_id)
         )
     ).scalar_one_or_none()
     
@@ -192,7 +184,7 @@ async def delete_setting(
     # Delete the setting (will cascade to options)
     session.execute(
         delete(Setting).where(
-            and_(Setting.chat_id == chat_id, Setting.setting_id == setting_id)
+            and_(Setting.chat_id == chat_id, Setting.id == setting_id)
         )
     )
     

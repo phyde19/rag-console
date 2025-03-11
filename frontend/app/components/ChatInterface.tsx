@@ -6,7 +6,6 @@ import { NewMessageCell } from './NewMessageCell';
 import { LoadingMessage } from './LoadingMessage';
 import { AddMessageHoverUI } from './AddMessageHoverUI';
 import { useChatStore, Chat, ChatMessage } from '../context/ChatStore';
-import { companyPlugins, generateUUID } from '../lib/chats';
 
 // Default configuration
 const DEFAULT_CONFIG = {
@@ -154,11 +153,9 @@ export function ChatInterface() {
     if (pluginsSetting) {
       // If plugins setting exists, describe it
       if (selectedPlugins.length > 0) {
-        const pluginNames = selectedPlugins.map(id => {
-          // Find the plugin name by ID
-          return companyPlugins.find(p => p.id === id)?.name || id;
-        });
-        pluginsDescription = `With access to the following plugins: ${pluginNames.join(', ')}.`;
+        // Just use the plugin IDs directly since we don't have the mapping anymore
+        // The backend has these definitions now
+        pluginsDescription = `With access to the following plugins: ${selectedPlugins.join(', ')}.`;
       } else {
         pluginsDescription = 'Without access to any plugins.';
       }

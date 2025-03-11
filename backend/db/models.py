@@ -1,8 +1,10 @@
-from sqlalchemy import String, Integer, Text, DateTime
+from sqlalchemy import String, Integer, Text, DateTime, insert
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.types import Uuid
 from datetime import datetime
 import uuid
+
+from db.dependencies import engine, get_session
 
 class Base(DeclarativeBase):
     pass
@@ -68,5 +70,21 @@ class Chat(Base):
 
     def __repr__(self):
         return f"Chat(id={self.id}, name={self.name}, created_at={self.created_at}, updated_at={self.updated_at})"
+    
+
+def init_db_and_tables():
+    # drop all not needed for sqlite
+    # Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
+    seed_db()
+
+def seed_db():
+    session = next(get_session())
+    # adding chats corresponding to hardcoded values in frontend/app/components/lib/initialChats
+    session.execute(insert(Chat), [
+        {"id": uuid.uuid4(), "name": "BlueCard FAQ"},
+        {"id": uuid.uuid4(), "name": "Technical Support"}
+    ])
+
 
 

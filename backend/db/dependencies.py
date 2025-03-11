@@ -5,7 +5,11 @@ from typing import Annotated
 
 from config.settings import settings
 
-engine = create_engine(settings.db_url, echo=True)
+engine = create_engine(
+    settings.db_url, 
+    echo=True,
+    connect_args=settings.db_connect_args
+)
 
 def get_session():
     with Session(engine) as session:

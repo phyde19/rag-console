@@ -55,6 +55,10 @@ message
 setting
 setting_option
 
+chat : message - 1 : many
+message : setting - 1 : many
+setting : setting_option - 1 : many
+
 """
 
 # Example of how to define SqlAlchemy 2.0 Mapped Table

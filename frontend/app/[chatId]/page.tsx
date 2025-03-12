@@ -23,7 +23,7 @@ export default function ChatPage() {
     return (
       <AppLayout>
         <div className="col-span-7 p-4 h-screen flex items-center justify-center">
-          <div className="text-gray-500">No chat selected</div>
+          <div className="text-gray-500">No Chat Found</div>
         </div>
       </AppLayout>
     );

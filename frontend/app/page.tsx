@@ -8,7 +8,7 @@ export default function Home() {
       <div className="col-span-7 p-6 h-screen overflow-y-auto">
         <div className="max-w-4xl mx-auto">
           <div className="mb-8 pb-6 border-b border-gray-200">
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">Chat Simulator</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">BluePilot Flight Simulator</h1>
             
             <div className="bg-blue-50 border-l-4 border-blue-500 rounded-md p-4">
               <div className="flex items-start">
@@ -27,9 +27,9 @@ export default function Home() {
           </div>
           
           <div className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-800 mb-3 pb-2 border-b border-gray-200">What is Chat Simulator?</h2>
+            <h2 className="text-xl font-semibold text-gray-800 mb-3 pb-2 border-b border-gray-200">What is the Flight Simulator?</h2>
             <p className="text-gray-700 leading-relaxed">
-              Chat Simulator is a developer tool for experimenting with and mocking various chat-based 
+              Flight Simulator is a developer tool for experimenting with and mocking various chat-based 
               AI scenarios. It allows developers and researchers to create, save, and manipulate 
               conversation states in a controlled environment.
             </p>

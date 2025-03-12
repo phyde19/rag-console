@@ -401,7 +401,7 @@ export function ChatInterface() {
       <div>
         {currentChat.messages.map((message, index) => (
           <div key={message.id}>
-            {message.isLoading ? (
+            {message.isSimulating ? (
               <LoadingMessage />
             ) : (
               <Message

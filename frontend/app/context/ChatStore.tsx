@@ -10,6 +10,7 @@ export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
   isLoading?: boolean;
+  isSimulating?: boolean;
 }
 
 export interface ChatSetting {
@@ -64,6 +65,8 @@ type ChatStoreAction =
   | { type: 'DELETE_MESSAGE', payload: { messageId: string } }
   | { type: 'REPLACE_TEMP_MESSAGE', payload: { tempId: string, message: ChatMessage } }
   | { type: 'REMOVE_TEMP_MESSAGE', payload: { tempId: string } }
+  | { type: 'SET_MESSAGE_LOADING', payload: { messageId: string, isLoading: boolean } }
+  | { type: 'SET_MESSAGE_SIMULATING', payload: { messageId: string, isSimulating: boolean } }
   | { type: 'UPDATE_SETTING', payload: { settingId: string, value: any } }
   | { type: 'ADD_SETTING', payload: { setting: ChatSetting } }
   | { type: 'REMOVE_SETTING', payload: { settingId: string } };
@@ -303,6 +306,40 @@ function chatStoreReducer(state: ChatStoreState, action: ChatStoreAction): ChatS
           : null
       };
       
+    case 'SET_MESSAGE_LOADING':
+      // Update the loading state of a specific message
+      return {
+        ...state,
+        currentChat: state.currentChat
+          ? {
+              ...state.currentChat,
+              messages: state.currentChat.messages.map(msg =>
+                msg.id === action.payload.messageId
+                  ? { ...msg, isLoading: action.payload.isLoading }
+                  : msg
+              ),
+              updatedAt: new Date().toISOString()
+            }
+          : null
+      };
+      
+    case 'SET_MESSAGE_SIMULATING':
+      // Update the simulation state of a specific message
+      return {
+        ...state,
+        currentChat: state.currentChat
+          ? {
+              ...state.currentChat,
+              messages: state.currentChat.messages.map(msg =>
+                msg.id === action.payload.messageId
+                  ? { ...msg, isSimulating: action.payload.isSimulating }
+                  : msg
+              ),
+              updatedAt: new Date().toISOString()
+            }
+          : null
+      };
+      
     case 'UPDATE_SETTING':
       // Only update current chat settings
       return {
@@ -533,7 +570,13 @@ export function ChatStoreProvider({ children }: { children: React.ReactNode }) {
       dispatch({
         type: 'INSERT_MESSAGE',
         payload: {
-          message: { id: tempId, role, content, isLoading: true },
+          message: { 
+            id: tempId, 
+            role, 
+            content, 
+            isLoading: true,
+            isSimulating: false 
+          },
           position: position + 1 // Insert after the specified position
         }
       });
@@ -542,7 +585,13 @@ export function ChatStoreProvider({ children }: { children: React.ReactNode }) {
       dispatch({
         type: 'ADD_MESSAGE',
         payload: {
-          message: { id: tempId, role, content, isLoading: true }
+          message: { 
+            id: tempId, 
+            role, 
+            content, 
+            isLoading: true,
+            isSimulating: false 
+          }
         }
       });
     }
@@ -561,7 +610,8 @@ export function ChatStoreProvider({ children }: { children: React.ReactNode }) {
           message: {
             id: response.id,
             role: response.role as 'system' | 'user' | 'assistant',
-            content: response.content
+            content: response.content,
+            isSimulating: false
           }
         }
       });
@@ -759,17 +809,28 @@ export function ChatStoreProvider({ children }: { children: React.ReactNode }) {
   const simulateMessage = useCallback(async (messageId: string) => {
     if (!state.currentChat) return;
     
-    // First mark as empty/loading
-    await updateMessage(messageId, '');
+    // Set message to simulating state
+    dispatch({
+      type: 'SET_MESSAGE_SIMULATING',
+      payload: { messageId, isSimulating: true }
+    });
     
     // Simulate a delay
     await new Promise(resolve => setTimeout(resolve, 1500));
     
-    // Generate a simulated response
-    const simulatedResponse = generateSimulatedResponse();
-    
-    // Update with simulated response
-    await updateMessage(messageId, simulatedResponse);
+    try {
+      // Generate a simulated response
+      const simulatedResponse = generateSimulatedResponse();
+      
+      // Update with simulated response
+      await updateMessage(messageId, simulatedResponse);
+    } finally {
+      // Make sure to clear simulating state even if there's an error
+      dispatch({
+        type: 'SET_MESSAGE_SIMULATING',
+        payload: { messageId, isSimulating: false }
+      });
+    }
   }, [state.currentChat, updateMessage]);
   
   // Helper to generate a simulated response (simplified)
@@ -797,7 +858,7 @@ export function ChatStoreProvider({ children }: { children: React.ReactNode }) {
 
       const chatId = await createBackendChat(name, systemMessage)
       
-      // loadChatList, then navigate
+      // loadChatList
       await loadChatList();
       navigateToChat(chatId);
       

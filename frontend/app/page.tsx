@@ -1,22 +1,8 @@
 'use client';
 
 import { AppLayout } from './components/AppLayout';
-import { useChatStore } from './context/ChatStore';
-import { LoadingSpinner } from './components/LoadingSpinner';
 
 export default function Home() {
-  // We'll provide a simplified home page that doesn't need state
-  // The AppLayout will use the ChatStore directly
-  const { isLoading } = useChatStore();
-  
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
-  
   return (
     <AppLayout>
       <div className="col-span-7 p-6 h-screen overflow-y-auto">

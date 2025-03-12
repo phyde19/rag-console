@@ -367,6 +367,25 @@ export function ChatStoreProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(chatStoreReducer, initialState);
   const router = useRouter();
   const pathname = usePathname();
+
+  // helpers
+
+  // creates a chat on the backend
+  const createBackendChat = async (
+    name?: string, 
+    systemMessage: string = 'You are a helpful assistant.'
+  ): Promise<string> => {
+    const defaultName = name || `New Chat ${new Date().toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric'
+    })}`;
+      
+    // Create in API
+    const newChat = await api.createChat(defaultName, systemMessage);
+    return newChat.id
+  }
   
   // Load chat list
   const loadChatList = useCallback(async () => {
@@ -414,23 +433,26 @@ export function ChatStoreProvider({ children }: { children: React.ReactNode }) {
     systemMessage: string = 'You are a helpful assistant.'
   ) => {
     dispatch({ type: 'SET_SAVING', payload: true });
-    // dispatch({ type: 'SET_ERROR', payload: null });
+    dispatch({ type: 'SET_ERROR', payload: null });
     
     try {
-      const defaultName = name || `New Chat ${new Date().toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: 'numeric'
-      })}`;
+      // const defaultName = name || `New Chat ${new Date().toLocaleString('en-US', {
+      //   month: 'short',
+      //   day: 'numeric',
+      //   hour: 'numeric',
+      //   minute: 'numeric'
+      // })}`;
       
-      // Create in API
-      const newChat = await api.createChat(defaultName, systemMessage);
+      // // Create in API
+      // const newChat = await api.createChat(defaultName, systemMessage);
+
+      const newChatId = await createBackendChat(name, systemMessage)
       
       // Update chat list
-    //   await loadChatList();
+      await loadChatList();
       
-      return newChat.id;
+      return newChatId;
+
     } catch (err) {
       console.error('Failed to create chat:', err);
       dispatch({ type: 'SET_ERROR', payload: 'Failed to create chat' });
@@ -767,11 +789,28 @@ export function ChatStoreProvider({ children }: { children: React.ReactNode }) {
     systemMessage?: string
   ) => {
     // First create the chat
-    const chatId = await createChat(name, systemMessage);
-    
-    // After chat is created, navigate to it
-    // We don't need to load the chat, as the route change will trigger that
-    // navigateToChat(chatId);
+    // const chatId = await createChat(name, systemMessage);
+    dispatch({ type: 'SET_SAVING', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
+
+    try {
+
+      const chatId = await createBackendChat(name, systemMessage)
+      
+      // loadChatList, then navigate
+      await loadChatList();
+      navigateToChat(chatId);
+      
+      return chatId;
+
+    } catch (err) {
+      console.error('Failed to create chat:', err);
+      dispatch({ type: 'SET_ERROR', payload: 'Failed to create chat' });
+      throw err;
+    } finally {
+      dispatch({ type: 'SET_SAVING', payload: false });
+    }
+
   }, [createChat, navigateToChat]);
   
   // Delete chat and navigate elsewhere

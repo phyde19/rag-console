@@ -17,25 +17,35 @@ export default function ChatPage() {
     isLoading,
     error
   } = useChatStore();
-  
-  
-  // Loading state
-  if (isLoading) {
+
+  // Early return if no chat is loaded
+  if (!currentChat) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <LoadingSpinner size="lg" />
-      </div>
+      <AppLayout>
+        <div className="col-span-7 p-4 h-screen flex items-center justify-center">
+          <div className="text-gray-500">No chat selected</div>
+        </div>
+      </AppLayout>
     );
   }
   
-  // Error state or chat not found
-  if (error || !currentChat) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-gray-500">Chat not found</div>
-      </div>
-    );
-  }
+//   // Loading state
+//   if (isLoading) {
+//     return (
+//       <div className="flex items-center justify-center h-screen">
+//         <LoadingSpinner size="lg" />
+//       </div>
+//     );
+//   }
+  
+//   // Error state or chat not found
+//   if (error || !currentChat) {
+//     return (
+//       <div className="flex items-center justify-center h-screen">
+//         <div className="text-gray-500">Chat not found</div>
+//       </div>
+//     );
+//   }
   
   return (
     <AppLayout>

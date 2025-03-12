@@ -8,7 +8,7 @@ import { LoadingSpinner } from './LoadingSpinner';
 
 export function ChatSidebar() {
   const pathname = usePathname();
-  const { sortedChats, createAndNavigate, isLoading } = useChatStore();
+  const { sortedChats, createAndNavigate, state } = useChatStore();
   const [isCreatingChat, setIsCreatingChat] = useState(false);
   
   // The elegantly simple solution: we treat URL as the source of truth
@@ -33,7 +33,7 @@ export function ChatSidebar() {
       <div className="mb-4">
         <button 
           onClick={handleNewChat}
-          disabled={isCreatingChat || isLoading}
+          disabled={isCreatingChat || state.isLoadingList}
           className="w-full py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center justify-center gap-1 disabled:opacity-50"
         >
           {isCreatingChat ? (

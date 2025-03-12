@@ -13,6 +13,8 @@ const DEFAULT_CONFIG = {
   selectedPlugins: []
 };
 
+// chat
+
 // No need for props anymore
 export function ChatInterface() {
   const { 
@@ -27,14 +29,9 @@ export function ChatInterface() {
     temperature,
     selectedPlugins
   } = useChatStore();
-  
-  // Early return if no chat is loaded
+
   if (!currentChat) {
-    return (
-      <div className="col-span-7 p-4 h-screen flex items-center justify-center">
-        <div className="text-gray-500">No chat selected</div>
-      </div>
-    );
+    return <div>Something went wrong...</div>
   }
   
   // Only use local state for UI-specific elements
